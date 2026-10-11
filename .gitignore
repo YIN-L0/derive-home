@@ -6,3 +6,4 @@ dist
 !.env.example
 # raw output of generate_assets.py
 downloads/
+.vercel

@@ -1,0 +1,11 @@
+# Never upload secrets or raw generator output with a deployment
+.env
+.env.*
+!.env.example
+downloads
+dist
+node_modules
+.git
+*.srt
+*.vtt
+generate_assets.py
