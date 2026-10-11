@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
-import { YEARS, personRoutes, viewpoints, type ObjectId, type Vec3, type Year } from './config/scene'
+import { YEARS, memorySpots, personRoutes, viewpoints, type ObjectId, type Vec3, type Year } from './config/scene'
 import { ERAS, OBJECTS, objectById, type Layer, type MemoryObject } from './data/objects'
-import { DeriveScene } from './scene/DeriveScene'
+import { DeriveScene, type ItemId } from './scene/DeriveScene'
+import { MemoryCard } from './memory/MemoryCard'
+import { MemoryDialog } from './memory/MemoryDialog'
+import { loadMemories, saveMemories } from './memory/api'
+import { isMemoryId, type MemoryAnalysis, type UserMemory } from './memory/types'
 
 type Filter = 'all' | Layer
 const FILTERS: Filter[] = ['all', 'family', 'tenants', 'current']
@@ -11,7 +15,9 @@ export default function App() {
   const mount = useRef<HTMLDivElement>(null)
   const scene = useRef<DeriveScene | null>(null)
   const [year, setYear] = useState<Year>(START_YEAR)
-  const [selected, setSelected] = useState<ObjectId | null>(null)
+  const [selected, setSelected] = useState<ItemId | null>(null)
+  const [memories, setMemories] = useState<UserMemory[]>(loadMemories)
+  const [memoryDialog, setMemoryDialog] = useState(false)
   const [filter, setFilter] = useState<Filter>('all')
   const [showMovement, setShowMovement] = useState(false)
   const [showPath, setShowPath] = useState(false)
@@ -40,10 +46,16 @@ export default function App() {
   }, [])
 
   const visible = OBJECTS.filter((o) => filter === 'all' || o.layers.includes(filter))
-  const selectedVisible = selected && visible.some((o) => o.id === selected) ? selected : null
+  const selectedVisible = selected && visible.some((o) => o.id === selected) ? (selected as ObjectId) : null
+  const selectedMemory = isMemoryId(selected) ? memories.find((m) => m.id === selected) : undefined
+  const selectedItem: ItemId | null = selectedMemory?.id ?? selectedVisible
 
   useEffect(() => scene.current?.setYear(year), [year])
-  useEffect(() => scene.current?.setSelected(selectedVisible), [selectedVisible])
+  useEffect(() => scene.current?.setSelected(selectedItem), [selectedItem])
+  useEffect(() => {
+    scene.current?.setMemories(memories.map((m) => ({ id: m.id, form: m.analysis.object, position: m.position })))
+    saveMemories(memories)
+  }, [memories])
   useEffect(() => scene.current?.setVisible(visible.map((o) => o.id)), [filter])
   useEffect(() => scene.current?.setRoute(showMovement ? year : null), [showMovement, year])
   useEffect(() => scene.current?.setObjectPath(showPath ? selectedVisible : null), [showPath, selectedVisible])
@@ -55,9 +67,31 @@ export default function App() {
     scene.current?.goToView(v)
   }
 
+  // Put an analysed memory into the room as a new object and open its card.
+  const placeMemory = (text: string, analysis: MemoryAnalysis, photo?: string) => {
+    const spot = memorySpots.find((s) => s.id === analysis.place.spotId) ?? memorySpots[0]
+    // step aside from whatever already sits on that spot
+    const n = memories.filter((m) => m.analysis.place.spotId === spot.id).length + 1
+    const angle = n * 2.4
+    const [x, y, z] = spot.position
+    const memory: UserMemory = {
+      id: `mem-${Date.now().toString(36)}`,
+      text,
+      photo,
+      analysis,
+      position: [x + Math.cos(angle) * 0.3, y, z + Math.sin(angle) * 0.3],
+      createdAt: Date.now(),
+    }
+    setMemories((list) => [...list, memory])
+    setMemoryDialog(false)
+    setSelected(memory.id)
+    if (YEARS.includes(analysis.layer as Year)) setYear(analysis.layer as Year)
+  }
+
   // E toggles the closing card for screen recordings.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if ((e.target as HTMLElement).closest?.('input, textarea')) return
       if (e.key === 'e' || e.key === 'E') setEndCard((v) => !v)
       if (e.key === 'Escape') setSelected(null)
       // 1-9 jump between camera angles
@@ -120,6 +154,17 @@ export default function App() {
           )}
         </nav>
 
+        {selectedMemory && (
+          <MemoryCard
+            memory={selectedMemory}
+            onClose={() => setSelected(null)}
+            onRemove={() => {
+              setMemories((list) => list.filter((m) => m.id !== selectedMemory.id))
+              setSelected(null)
+            }}
+          />
+        )}
+
         {selectedVisible && (
           <StoryCard
             object={objectById(selectedVisible)}
@@ -152,7 +197,17 @@ export default function App() {
         )}
       </nav>
 
-      {!selectedVisible && !endCard && (
+      {memoryDialog ? (
+        <MemoryDialog onPlace={placeMemory} onClose={() => setMemoryDialog(false)} />
+      ) : (
+        !endCard && (
+          <button className="memory-open" onClick={() => setMemoryDialog(true)}>
+            <span>+</span>Leave a memory
+          </button>
+        )
+      )}
+
+      {!selectedItem && !endCard && (
         <footer className={`hint ${mode}`}>
           {status === 'loading' && 'Loading the apartment…'}
           {status === 'ready' && 'Select an object to follow its history through the home.'}

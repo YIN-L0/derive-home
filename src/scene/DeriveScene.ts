@@ -16,7 +16,11 @@ import {
   type Viewpoint,
   type Year,
 } from '../config/scene'
-import { createPrimitive } from './primitives'
+import { createMemoryPrimitive, createPrimitive } from './primitives'
+
+// Built-in objects use their ObjectId; memories added by a visitor use a `mem-…` id.
+export type ItemId = ObjectId | `mem-${string}`
+const PARALLEL = '#5b55c8'
 
 const MOVE_SECONDS = 0.8
 const ACCENT = '#e2572b'
@@ -61,7 +65,9 @@ function disposeGroup(g: THREE.Group) {
 }
 
 interface Item {
-  id: ObjectId
+  id: ItemId
+  idleMap?: THREE.Texture // marker texture when not selected, if different from the default
+  grow?: number // 0..1 while a newly placed memory scales into the room
   group: THREE.Group
   marker: THREE.Sprite
   from: THREE.Vector3
@@ -71,7 +77,7 @@ interface Item {
 }
 
 export interface SceneCallbacks {
-  onSelect: (id: ObjectId | null) => void
+  onSelect: (id: ItemId | null) => void
   onLoaded: () => void
   onModelLoaded?: (id: ObjectId) => void
   onError: (message: string) => void
@@ -106,11 +112,12 @@ export class DeriveScene {
   private controls: OrbitControls
   private raycaster = new THREE.Raycaster()
   private lastTime = performance.now()
-  private items = new Map<ObjectId, Item>()
+  private items = new Map<ItemId, Item>()
+  private markerMemory = markerTexture(PARALLEL, false)
   private apartment: THREE.Object3D | null = null
   private markerIdle = markerTexture('#1b1b1d', false)
   private markerActive = markerTexture(ACCENT, true)
-  private selected: ObjectId | null = null
+  private selected: ItemId | null = null
   private route: THREE.Group | null = null
   private mode: 'orbit' | 'walk' = 'orbit'
   private flight: Flight | null = null
@@ -190,7 +197,8 @@ export class DeriveScene {
 
   setYear(year: Year) {
     for (const item of this.items.values()) {
-      const target = new THREE.Vector3(...objectPositions[item.id][year])
+      if (!(item.id in objectPositions)) continue // added memories stay where they were placed
+      const target = new THREE.Vector3(...objectPositions[item.id as ObjectId][year])
       if (target.distanceTo(item.to) < 1e-4) continue
       item.from.copy(item.group.position)
       item.to.copy(target)
@@ -198,17 +206,55 @@ export class DeriveScene {
     }
   }
 
-  setSelected(id: ObjectId | null) {
+  setSelected(id: ItemId | null) {
     this.selected = id
     for (const item of this.items.values()) {
       const active = item.id === id
-      item.marker.material.map = active ? this.markerActive : this.markerIdle
+      item.marker.material.map = active ? this.markerActive : (item.idleMap ?? this.markerIdle)
       item.marker.renderOrder = active ? 11 : 10
     }
   }
 
   setVisible(ids: ObjectId[]) {
-    for (const item of this.items.values()) item.group.visible = ids.includes(item.id)
+    for (const item of this.items.values()) {
+      item.group.visible = !(item.id in objectPositions) || ids.includes(item.id as ObjectId)
+    }
+  }
+
+  // Make the scene hold exactly these visitor memories: new ones grow into the room, missing ones leave.
+  setMemories(list: { id: ItemId; form: { shape: string; color: string; sizeCm: number }; position: Vec3 }[]) {
+    for (const item of [...this.items.values()]) {
+      if (item.id in objectPositions || list.some((m) => m.id === item.id)) continue
+      item.group.traverse((o) => (o as THREE.Mesh).geometry?.dispose())
+      item.group.removeFromParent()
+      this.items.delete(item.id)
+    }
+    for (const m of list) {
+      if (this.items.has(m.id)) continue
+      const group = createMemoryPrimitive(m.form)
+      group.position.set(...m.position)
+      group.userData.id = m.id
+      const height = new THREE.Box3().setFromObject(group).max.y - group.position.y
+      const marker = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.markerMemory, depthTest: false }))
+      marker.position.y = height + 0.09
+      marker.renderOrder = 10
+      marker.userData.id = m.id
+      group.add(marker)
+      group.scale.setScalar(0.001)
+      this.scene.add(group)
+      this.items.set(m.id, {
+        id: m.id,
+        group,
+        marker,
+        from: group.position.clone(),
+        to: group.position.clone(),
+        t: 1,
+        height,
+        idleMap: this.markerMemory,
+        grow: 0,
+      })
+    }
+    this.setSelected(this.selected)
   }
 
   // Floor line showing how the resident of that year walks through the home.
@@ -254,7 +300,7 @@ export class DeriveScene {
   }
 
   // Pixel position of an object's marker; exposed as window.__derive in ?debug mode for scripted checks.
-  screenPosition(id: ObjectId) {
+  screenPosition(id: ItemId) {
     const item = this.items.get(id)!
     const p = item.marker.getWorldPosition(new THREE.Vector3()).project(this.camera)
     const r = this.renderer.domElement.getBoundingClientRect()
@@ -372,7 +418,10 @@ export class DeriveScene {
           model.traverse((o) => {
             const m = o as THREE.Mesh
             if (!m.isMesh) return
-            for (const mat of [m.material].flat() as THREE.MeshStandardMaterial[]) mat.envMap = envMap
+            for (const mat of [m.material].flat() as THREE.MeshStandardMaterial[]) {
+              mat.envMap = envMap
+              mat.envMapIntensity = 0.25
+            }
           })
 
           for (const child of [...item.group.children]) {
@@ -492,6 +541,7 @@ export class DeriveScene {
 
   private onKeyDown = (e: KeyboardEvent) => {
     if (this.mode !== 'walk' || e.metaKey || e.ctrlKey) return
+    if ((e.target as HTMLElement).closest?.('input, textarea')) return // typing, not walking
     const key = e.key.toLowerCase()
     if (key.startsWith('arrow')) e.preventDefault()
     this.keys.add(key)
@@ -521,7 +571,7 @@ export class DeriveScene {
     this.raycaster.setFromCamera(ndc, this.camera)
   }
 
-  private pick(e: PointerEvent): ObjectId | null {
+  private pick(e: PointerEvent): ItemId | null {
     this.setRay(e)
     const targets = [...this.items.values()].filter((i) => i.group.visible).map((i) => i.group)
     const hit = this.raycaster.intersectObjects(targets, true)[0]
@@ -533,7 +583,7 @@ export class DeriveScene {
     }
     let o: THREE.Object3D | null = hit.object
     while (o && !o.userData.id) o = o.parent
-    return o ? (o.userData.id as ObjectId) : null
+    return o ? (o.userData.id as ItemId) : null
   }
 
   private onPointerDown = (e: PointerEvent) => {
@@ -618,6 +668,11 @@ export class DeriveScene {
     const dt = Math.min((now - this.lastTime) / 1000, 0.1)
     this.lastTime = now
     for (const item of this.items.values()) {
+      if (item.grow !== undefined && item.grow < 1) {
+        item.grow = Math.min(1, item.grow + dt / 1.1)
+        const k = 1 - Math.pow(1 - item.grow, 3)
+        item.group.scale.setScalar(Math.max(0.001, k))
+      }
       if (item.t >= 1) continue
       item.t = Math.min(1, item.t + dt / MOVE_SECONDS)
       const k = item.t * item.t * (3 - 2 * item.t) // smoothstep

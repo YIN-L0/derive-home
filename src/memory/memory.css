@@ -1,0 +1,77 @@
+:root { --parallel: #5b55c8; }
+
+.memory-open {
+  position: fixed; left: 32px; bottom: 56px; padding: 10px 16px 10px 14px;
+  background: var(--ink); color: #fff; border-radius: 99px;
+  font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18);
+}
+.memory-open:hover { background: var(--parallel); }
+.memory-open span { margin-right: 8px; font-size: 14px; line-height: 0; }
+
+.memory-dialog {
+  position: fixed; left: 24px; bottom: 24px; width: 430px; max-height: calc(100vh - 48px);
+  box-sizing: border-box; padding: 22px 24px; overflow-y: auto; z-index: 5;
+  background: rgba(255, 255, 255, 0.94); backdrop-filter: blur(18px);
+  border: 1px solid var(--line); border-radius: 4px; box-shadow: 0 18px 60px rgba(0, 0, 0, 0.16);
+}
+.memory-dialog .close { position: absolute; top: 10px; right: 14px; font-size: 20px; line-height: 1; color: var(--muted); }
+.memory-dialog h2 { margin: 8px 0 12px; font-size: 24px; font-weight: 400; line-height: 1.2; letter-spacing: -0.01em; }
+.manifesto { margin: 0 0 10px; font-size: 14px; line-height: 1.55; }
+.manifesto.quiet { color: var(--muted); font-style: italic; }
+
+.memory-dialog textarea {
+  display: block; width: 100%; box-sizing: border-box; margin-top: 14px; padding: 12px;
+  border: 1px solid var(--line); border-radius: 3px; background: #fff; resize: vertical;
+  font: inherit; font-size: 14px; line-height: 1.5; color: var(--ink);
+}
+.memory-dialog textarea:focus { outline: none; border-color: var(--parallel); }
+.memory-dialog textarea::placeholder { color: #a9a7a0; }
+
+.memory-dialog .actions { display: flex; gap: 8px; margin-top: 14px; align-items: center; }
+.memory-dialog .actions .primary { margin-left: auto; }
+.memory-dialog button.primary, .memory-dialog button.ghost {
+  padding: 8px 14px; border-radius: 99px; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase;
+}
+.memory-dialog button.primary { background: var(--ink); color: #fff; }
+.memory-dialog button.primary:hover { background: var(--parallel); }
+.memory-dialog button.primary:disabled { opacity: 0.3; cursor: default; background: var(--ink); }
+.memory-dialog button.ghost { border: 1px solid var(--line); }
+.memory-dialog button.ghost:hover { border-color: var(--ink); }
+.memory-dialog button.ghost.live { border-color: var(--accent); color: var(--accent); }
+
+.memory-dialog .error { margin: 10px 0 0; padding: 8px 10px; background: rgba(226, 87, 43, 0.1); color: #a33a17; border-radius: 3px; font-size: 12px; }
+.memory-dialog .photo { display: flex; align-items: center; gap: 10px; margin-top: 10px; font-size: 12px; color: var(--muted); }
+.memory-dialog .photo img { width: 44px; height: 44px; object-fit: cover; border-radius: 3px; }
+.memory-dialog .photo button { margin-left: auto; text-decoration: underline; }
+
+.steps { list-style: none; margin: 18px 0 4px; padding: 0; }
+.steps li { padding: 5px 0 5px 22px; position: relative; color: #b5b3ad; transition: color 0.4s; }
+.steps li::before { content: ''; position: absolute; left: 4px; top: 12px; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.steps li.done { color: var(--muted); }
+.steps li.now { color: var(--ink); }
+.steps li.now::before { background: var(--parallel); animation: pulse 1s ease-in-out infinite; }
+@keyframes pulse { 50% { transform: scale(2); opacity: 0.4; } }
+
+.memory-dialog blockquote, .memory-card blockquote {
+  margin: 0 0 14px; padding-left: 12px; border-left: 2px solid var(--line);
+  color: var(--muted); font-style: italic; font-size: 13px; white-space: pre-wrap;
+}
+.breakdown { display: grid; grid-template-columns: 104px 1fr; gap: 6px 0; margin: 0 0 14px; }
+.breakdown dt { font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); padding-top: 2px; }
+.breakdown dd { margin: 0; font-weight: 500; }
+.breakdown em, .memory-card dd em { font-style: normal; font-weight: 400; color: var(--muted); }
+
+.parallel { padding: 12px 14px; border-left: 2px solid var(--parallel); background: rgba(91, 85, 200, 0.07); }
+.parallel .label { color: var(--parallel); }
+.parallel p { margin: 4px 0 0; font-size: 14px; line-height: 1.5; font-style: italic; }
+.card section.parallel { border-top: 0; padding-top: 12px; }
+
+.memory-dialog .form { display: flex; gap: 12px; margin-top: 14px; }
+.memory-dialog .form .swatch { flex: none; width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--line); }
+.memory-dialog .form div { display: flex; flex-direction: column; gap: 2px; font-size: 12px; }
+.memory-dialog .form .note { color: var(--muted); }
+.memory-dialog .followup { margin: 12px 0 0; font-size: 12px; color: var(--muted); }
+
+.memory-card .photo-large { display: block; max-width: 100%; max-height: 160px; margin: 8px 0; border-radius: 3px; }
+.memory-card blockquote { margin-top: 8px; }

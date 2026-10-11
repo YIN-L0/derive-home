@@ -74,6 +74,22 @@ const spot = {
   onMovingBox: [-0.98, -0.79, -0.73], // livingFloor + box height (0.36)
 } satisfies Record<string, Vec3>
 
+// Places where a memory described by a visitor can be put (the "Leave a memory" dialog).
+// The language model reads the labels and picks one by id.
+export const memorySpots: { id: string; label: string; position: Vec3 }[] = [
+  { id: 'bookshelf', label: 'Bedroom bookshelf', position: spot.bookshelf },
+  { id: 'shelfCabinet', label: 'Top of the low cabinet in the bedroom', position: spot.shelfCabinetMid },
+  { id: 'bedroomFloor', label: 'Bedroom floor, beside the bed', position: spot.bedroomFloor },
+  { id: 'sofa', label: 'Living-room sofa', position: spot.sofaLeft },
+  { id: 'rug', label: 'Living-room rug', position: spot.rug },
+  { id: 'livingFloor', label: 'Living-room floor', position: spot.livingFloor },
+  { id: 'mantle', label: 'Fireplace mantelpiece', position: spot.mantleRight },
+  { id: 'window', label: 'By the glass door to the balcony', position: spot.window },
+  { id: 'kitchenCounter', label: 'Kitchen counter by the sink', position: spot.kitchenCounter },
+  { id: 'stove', label: 'Kitchen, beside the stove', position: spot.stoveSide },
+  { id: 'hall', label: 'Hallway floor', position: spot.hallFloor },
+]
+
 // Where each object sits in each year. Same position in all three years = it never moves.
 export const objectPositions: Record<ObjectId, Record<Year, Vec3>> = {
   book: {
@@ -112,9 +128,9 @@ export const objectPositions: Record<ObjectId, Record<Year, Vec3>> = {
     2026: spot.livingFloor,
   },
   lamp: {
-    1998: spot.shelfCabinetRight,
-    2018: spot.mantle,
-    2026: spot.shelfCabinetLeft,
+    1998: spot.mantleRight,
+    2018: spot.livingFloor,
+    2026: spot.mantle,
   },
   archive: {
     1998: spot.shelfCabinetMid,
@@ -129,7 +145,7 @@ export const objectPositions: Record<ObjectId, Record<Year, Vec3>> = {
 // If a file is missing the primitive stays.
 export const objectModels: Partial<Record<ObjectId, { url: string; size: number; turn?: number }>> = {
   book: { url: '/assets/objects/book.glb', size: 0.22 },
-  camera: { url: '/assets/objects/camera.glb', size: 0.14 },
+  camera: { url: '/assets/objects/camera.glb', size: 0.2 }, // includes the strap; the body is about 0.14,
   lamp: { url: '/assets/objects/lamp.glb', size: 0.53 },
   archive: { url: '/assets/objects/archive.glb', size: 0.4 },
 }

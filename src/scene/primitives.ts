@@ -80,3 +80,41 @@ const builders: Record<ObjectId, () => THREE.Group> = {
 export function createPrimitive(id: ObjectId): THREE.Group {
   return builders[id]()
 }
+
+// Stand-in for a memory a visitor described: the language model chooses shape, colour and
+// size, and this turns them into a simple form. `sizeCm` is the longest side.
+export function createMemoryPrimitive(form: { shape: string; color: string; sizeCm: number }): THREE.Group {
+  const g = new THREE.Group()
+  const L = THREE.MathUtils.clamp(form.sizeCm || 20, 5, 90) / 100
+  const color = new THREE.Color(/^#[0-9a-f]{6}$/i.test(form.color) ? form.color : '#8d8aa8')
+  const m = new THREE.MeshStandardMaterial({ color, roughness: 0.55 })
+  switch (form.shape) {
+    case 'paper':
+      g.add(mesh(new THREE.BoxGeometry(L * 0.7, 0.006, L), m, 0, 0.003, 0))
+      break
+    case 'book':
+      g.add(mesh(new THREE.BoxGeometry(L * 0.7, L * 0.16, L), m, 0, L * 0.08, 0))
+      break
+    case 'vessel':
+      g.add(mesh(new THREE.CylinderGeometry(L * 0.36, L * 0.3, L, 28), m, 0, L / 2, 0))
+      break
+    case 'box':
+      g.add(mesh(new THREE.BoxGeometry(L, L * 0.7, L * 0.8), m, 0, L * 0.35, 0))
+      break
+    case 'sphere':
+      g.add(mesh(new THREE.SphereGeometry(L / 2, 32, 20), m, 0, L / 2, 0))
+      break
+    case 'soft': {
+      const blob = mesh(new THREE.SphereGeometry(L / 2, 24, 16), m, 0, L * 0.2, 0)
+      blob.scale.y = 0.4
+      g.add(blob)
+      break
+    }
+    case 'tall':
+      g.add(mesh(new THREE.CylinderGeometry(L * 0.14, L * 0.18, L, 20), m, 0, L / 2, 0))
+      break
+    default:
+      g.add(mesh(new THREE.OctahedronGeometry(L / 2), m, 0, L / 2, 0))
+  }
+  return g
+}

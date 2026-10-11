@@ -135,11 +135,11 @@ const entries: Omit<MemoryObject, 'positionByYear'>[] = [
     summary: 'The same light, switched on by a different hand in every decade.',
     layers: ['family', 'tenants'],
     ownerByYear: OWNERS,
-    locationByYear: { 1998: 'Bedroom Shelf', 2018: 'Mantelpiece', 2026: 'Bedroom Shelf' },
+    locationByYear: { 1998: 'Mantelpiece', 2018: 'Living Room Floor', 2026: 'Mantelpiece' },
     storyByYear: {
       1998: 'Left on until the last person was home. It was the signal that someone was still awake.',
-      2018: 'Moved to the living room, where it replaced the ceiling light nobody liked.',
-      2026: 'Back in the bedroom. It will be the last thing unplugged on moving day.',
+      2018: 'Nobody owned a side table. It stood on the floor and lit the room from below.',
+      2026: 'Back on the mantelpiece. It will be the last thing unplugged on moving day.',
     },
   },
   {
