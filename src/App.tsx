@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { YEARS, memorySpots, personRoutes, viewpoints, type ObjectId, type Vec3, type Year } from './config/scene'
 import { ERAS, OBJECTS, objectById, type Layer, type MemoryObject } from './data/objects'
+import { PEOPLE } from './data/people'
 import { DeriveScene, type ItemId } from './scene/DeriveScene'
 import { MemoryCard } from './memory/MemoryCard'
 import { MemoryDialog } from './memory/MemoryDialog'
@@ -19,6 +20,7 @@ export default function App() {
   const [memories, setMemories] = useState<UserMemory[]>(loadMemories)
   const [memoryDialog, setMemoryDialog] = useState(false)
   const [filter, setFilter] = useState<Filter>('all')
+  const [personId, setPersonId] = useState<string | null>(null)
   const [showMovement, setShowMovement] = useState(false)
   const [showPath, setShowPath] = useState(false)
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
@@ -45,7 +47,12 @@ export default function App() {
     return () => s.dispose()
   }, [])
 
-  const visible = OBJECTS.filter((o) => filter === 'all' || o.layers.includes(filter))
+  // a resident only counts while their own year is showing
+  const residents = PEOPLE.filter((p) => p.year === year)
+  const person = residents.find((p) => p.id === personId) ?? null
+  const visible = OBJECTS.filter(
+    (o) => (filter === 'all' || o.layers.includes(filter)) && (!person || person.objects.includes(o.id)),
+  )
   const selectedVisible = selected && visible.some((o) => o.id === selected) ? (selected as ObjectId) : null
   const selectedMemory = isMemoryId(selected) ? memories.find((m) => m.id === selected) : undefined
   const selectedItem: ItemId | null = selectedMemory?.id ?? selectedVisible
@@ -69,7 +76,7 @@ export default function App() {
     }
     saveMemories(memories)
   }, [memories])
-  useEffect(() => scene.current?.setVisible(visible.map((o) => o.id)), [filter])
+  useEffect(() => scene.current?.setVisible(visible.map((o) => o.id)), [filter, person])
   useEffect(() => scene.current?.setRoute(showMovement ? year : null), [showMovement, year])
   useEffect(() => scene.current?.setObjectPath(showPath ? selectedVisible : null), [showPath, selectedVisible])
 
@@ -149,6 +156,25 @@ export default function App() {
               </button>
             ))}
           </div>
+          <div className="label">Residents · {year}</div>
+          <div className="filters people">
+            {residents.map((p) => (
+              <button
+                key={p.id}
+                className={p === person ? 'chip active' : 'chip'}
+                onClick={() => setPersonId(p === person ? null : p.id)}
+              >
+                {p.name.split(' ')[0]}
+              </button>
+            ))}
+          </div>
+          {person && (
+            <div className="resident">
+              <strong>{person.name}</strong>
+              <em>{person.fate ? `${person.role} · ${person.fate}` : person.role}</em>
+              <span>{person.bio}</span>
+            </div>
+          )}
           <label className="toggle">
             <input type="checkbox" checked={showMovement} onChange={(e) => setShowMovement(e.target.checked)} />
             Show Movement

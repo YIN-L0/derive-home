@@ -95,6 +95,11 @@ button { background: none; border: 0; padding: 0; cursor: pointer; text-align: l
 .route { margin-top: 10px; padding-left: 10px; border-left: 2px solid var(--route); display: flex; flex-direction: column; }
 .route strong { font-weight: 600; }
 .route span { color: var(--muted); font-size: 12px; }
+.people { margin-top: 8px; flex-wrap: wrap; }
+.resident { margin: -2px 0 12px; padding-left: 10px; border-left: 2px solid var(--accent); display: flex; flex-direction: column; gap: 2px; }
+.resident strong { font-weight: 600; }
+.resident em { font-style: normal; font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); }
+.resident span { color: var(--muted); font-size: 12px; line-height: 1.45; }
 
 /* story card */
 .card {

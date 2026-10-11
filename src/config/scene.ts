@@ -167,17 +167,17 @@ const stop = {
 
 export const personRoutes: Record<Year, { person: string; stops: string[]; points: Vec3[] }> = {
   1998: {
-    person: 'Grandmother',
+    person: 'Hélène Marchand',
     stops: ['Bedroom', 'Kitchen', 'Dining Table', 'Sofa'],
     points: [stop.bedroom, stop.hall, stop.living, stop.kitchenDoor, stop.kitchen, stop.kitchenDoor, stop.diningTable, stop.sofa],
   },
   2018: {
-    person: 'Roommate',
+    person: 'Idris Bello',
     stops: ['Front Door', 'Kitchen', 'Desk', 'Sofa', 'Front Door'],
     points: [stop.frontDoor, stop.hall, stop.living, stop.kitchenDoor, stop.kitchen, stop.kitchenDoor, stop.desk, stop.sofa, stop.hall, stop.frontDoor],
   },
   2026: {
-    person: 'Current resident',
+    person: 'Lina Zhou',
     stops: ['Bedroom', 'Desk', 'Kitchen', 'Front Door'],
     points: [stop.bedroom, stop.hall, stop.desk, stop.living, stop.kitchenDoor, stop.kitchen, stop.kitchenDoor, stop.living, stop.hall, stop.frontDoor],
   },
