@@ -15,6 +15,8 @@ export interface MemoryAnalysis {
   feeling: string
   story: string
   parallel: string
+  // verbatim fragments of the visitor's text, for highlighting; may be missing on older saved memories
+  quotes?: { time: string; object: string; place: string; people: string }
   followUp: string | null
 }
 

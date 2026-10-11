@@ -53,7 +53,20 @@ export default function App() {
   useEffect(() => scene.current?.setYear(year), [year])
   useEffect(() => scene.current?.setSelected(selectedItem), [selectedItem])
   useEffect(() => {
-    scene.current?.setMemories(memories.map((m) => ({ id: m.id, form: m.analysis.object, position: m.position })))
+    scene.current?.setMemories(
+      memories.map((m) => ({
+        id: m.id,
+        form: m.analysis.object,
+        position: m.position,
+        fresh: Date.now() - m.createdAt < 2000, // just placed: play the generation effect
+      })),
+    )
+    // move in to watch a new one appear
+    const placed = memories.find((m) => Date.now() - m.createdAt < 2000)
+    if (placed) {
+      scene.current?.focusOn(placed.id)
+      setView(null)
+    }
     saveMemories(memories)
   }, [memories])
   useEffect(() => scene.current?.setVisible(visible.map((o) => o.id)), [filter])
@@ -67,19 +80,23 @@ export default function App() {
     scene.current?.goToView(v)
   }
 
+  // the home turns slowly while a memory is being written
+  useEffect(() => scene.current?.setAutoRotate(memoryDialog), [memoryDialog])
+
   // Put an analysed memory into the room as a new object and open its card.
   const placeMemory = (text: string, analysis: MemoryAnalysis, photo?: string) => {
     const spot = memorySpots.find((s) => s.id === analysis.place.spotId) ?? memorySpots[0]
-    // step aside from whatever already sits on that spot
-    const n = memories.filter((m) => m.analysis.place.spotId === spot.id).length + 1
+    // the first memory takes the spot itself; later ones step slightly aside
+    const n = memories.filter((m) => m.analysis.place.spotId === spot.id).length
     const angle = n * 2.4
+    const r = n ? 0.16 : 0
     const [x, y, z] = spot.position
     const memory: UserMemory = {
       id: `mem-${Date.now().toString(36)}`,
       text,
       photo,
       analysis,
-      position: [x + Math.cos(angle) * 0.3, y, z + Math.sin(angle) * 0.3],
+      position: [x + Math.cos(angle) * r, y, z + Math.sin(angle) * r],
       createdAt: Date.now(),
     }
     setMemories((list) => [...list, memory])
@@ -198,16 +215,21 @@ export default function App() {
       </nav>
 
       {memoryDialog ? (
-        <MemoryDialog onPlace={placeMemory} onClose={() => setMemoryDialog(false)} />
+        <MemoryDialog
+          onPlace={placeMemory}
+          onPreview={(spotId) => scene.current?.setBeacon(memorySpots.find((s) => s.id === spotId)?.position ?? null)}
+          onClose={() => setMemoryDialog(false)}
+        />
       ) : (
         !endCard && (
           <button className="memory-open" onClick={() => setMemoryDialog(true)}>
-            <span>+</span>Leave a memory
+            <span className="pulse" />
+            Leave a memory
           </button>
         )
       )}
 
-      {!selectedItem && !endCard && (
+      {!selectedItem && !endCard && !memoryDialog && (
         <footer className={`hint ${mode}`}>
           {status === 'loading' && 'Loading the apartment…'}
           {status === 'ready' && 'Select an object to follow its history through the home.'}

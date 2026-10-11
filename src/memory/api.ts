@@ -3,6 +3,18 @@ import { ERAS } from '../data/objects'
 import type { MemoryAnalysis, UserMemory } from './types'
 
 const STORE_KEY = 'derive.memories.v1'
+const PASS_KEY = 'derive.key'
+
+// A deployment can be protected with an access key. Opening the site once with ?key=… remembers it.
+function passcode(): string | undefined {
+  try {
+    const fromUrl = new URLSearchParams(location.search).get('key')
+    if (fromUrl) localStorage.setItem(PASS_KEY, fromUrl)
+    return fromUrl ?? localStorage.getItem(PASS_KEY) ?? undefined
+  } catch {
+    return undefined
+  }
+}
 
 export async function analyzeMemory(text: string, hasPhoto: boolean): Promise<MemoryAnalysis> {
   let res: Response
@@ -13,12 +25,13 @@ export async function analyzeMemory(text: string, hasPhoto: boolean): Promise<Me
       body: JSON.stringify({
         text,
         hasPhoto,
+        passcode: passcode(),
         spots: memorySpots.map(({ id, label }) => ({ id, label })),
         layers: YEARS.map((year) => ({ year, label: ERAS[year].label })),
       }),
     })
   } catch {
-    throw new Error('Could not reach the dev server. Is `npm run dev` still running?')
+    throw new Error('Could not reach the server.')
   }
   const data = await res.json().catch(() => null)
   if (!res.ok || !data?.analysis) throw new Error(data?.error ?? `Analysis failed (${res.status}).`)

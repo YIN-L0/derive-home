@@ -75,19 +75,20 @@ const spot = {
 } satisfies Record<string, Vec3>
 
 // Places where a memory described by a visitor can be put (the "Leave a memory" dialog).
-// The language model reads the labels and picks one by id.
+// The language model reads the labels and picks one by id. These are measured surfaces
+// kept clear of the built-in objects, so a new object does not land inside another one.
 export const memorySpots: { id: string; label: string; position: Vec3 }[] = [
-  { id: 'bookshelf', label: 'Bedroom bookshelf', position: spot.bookshelf },
-  { id: 'shelfCabinet', label: 'Top of the low cabinet in the bedroom', position: spot.shelfCabinetMid },
-  { id: 'bedroomFloor', label: 'Bedroom floor, beside the bed', position: spot.bedroomFloor },
-  { id: 'sofa', label: 'Living-room sofa', position: spot.sofaLeft },
-  { id: 'rug', label: 'Living-room rug', position: spot.rug },
-  { id: 'livingFloor', label: 'Living-room floor', position: spot.livingFloor },
-  { id: 'mantle', label: 'Fireplace mantelpiece', position: spot.mantleRight },
-  { id: 'window', label: 'By the glass door to the balcony', position: spot.window },
-  { id: 'kitchenCounter', label: 'Kitchen counter by the sink', position: spot.kitchenCounter },
+  { id: 'bookshelf', label: 'Bedroom bookshelf', position: [-5.56, -0.34, -2.2] },
+  { id: 'shelfCabinet', label: 'Top of the low cabinet in the bedroom', position: [-5.68, -0.7, -1.6] },
+  { id: 'bedroomFloor', label: 'Bedroom floor, beside the bed', position: [-2.8, -1.12, -1.4] },
+  { id: 'sofa', label: 'Living-room sofa', position: [-1.33, -0.75, 0.21] },
+  { id: 'rug', label: 'Living-room rug', position: [-0.94, -1.14, 0.98] },
+  { id: 'livingFloor', label: 'Living-room floor', position: [1.63, -1.18, -0.61] },
+  { id: 'mantle', label: 'Fireplace mantelpiece', position: [-2.93, 0.24, 2.1] },
+  { id: 'window', label: 'By the glass door to the balcony', position: [-2.7, -1.15, 3.6] },
+  { id: 'kitchenCounter', label: 'Kitchen counter by the sink', position: [0.94, -0.35, 4.31] },
   { id: 'stove', label: 'Kitchen, beside the stove', position: spot.stoveSide },
-  { id: 'hall', label: 'Hallway floor', position: spot.hallFloor },
+  { id: 'hall', label: 'Hallway floor', position: [0, -1.15, -1.2] },
 ]
 
 // Where each object sits in each year. Same position in all three years = it never moves.

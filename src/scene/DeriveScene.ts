@@ -20,11 +20,12 @@ import { createMemoryPrimitive, createPrimitive } from './primitives'
 
 // Built-in objects use their ObjectId; memories added by a visitor use a `mem-…` id.
 export type ItemId = ObjectId | `mem-${string}`
-const PARALLEL = '#5b55c8'
+const PARALLEL = '#e11d1d'
+export const GENERATE_SECONDS = 6 // keep in step with GENERATE_MS in memory/MemoryCard.tsx
 
 const MOVE_SECONDS = 0.8
-const ACCENT = '#e2572b'
-const ROUTE_COLOR = 0x1f6feb
+const ACCENT = '#e11d1d'
+const ROUTE_COLOR = 0xffffff
 const FLY_SECONDS = 1.1
 const WALK_SPEED = 2.2 // m/s
 const TURN_SPEED = 1.6 // rad/s
@@ -67,7 +68,9 @@ function disposeGroup(g: THREE.Group) {
 interface Item {
   id: ItemId
   idleMap?: THREE.Texture // marker texture when not selected, if different from the default
-  grow?: number // 0..1 while a newly placed memory scales into the room
+  grow?: number // 0..1 while a newly placed memory is being "generated" in the room
+  born?: number // performance.now() when the generation effect started
+  gen?: { body: THREE.Mesh[]; solid: THREE.Material[]; wire: THREE.Material; ring: THREE.Mesh }
   group: THREE.Group
   marker: THREE.Sprite
   from: THREE.Vector3
@@ -119,6 +122,7 @@ export class DeriveScene {
   private markerActive = markerTexture(ACCENT, true)
   private selected: ItemId | null = null
   private route: THREE.Group | null = null
+  private beacon: THREE.Group | null = null
   private mode: 'orbit' | 'walk' = 'orbit'
   private flight: Flight | null = null
   private yaw = 0
@@ -143,7 +147,7 @@ export class DeriveScene {
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true })
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
-    this.renderer.setClearColor(0xeeece8)
+    this.renderer.setClearColor(0x050505)
     container.appendChild(this.renderer.domElement)
 
     this.camera = new THREE.PerspectiveCamera(cameraConfig.fov, 1, 0.05, 200)
@@ -222,7 +226,11 @@ export class DeriveScene {
   }
 
   // Make the scene hold exactly these visitor memories: new ones grow into the room, missing ones leave.
-  setMemories(list: { id: ItemId; form: { shape: string; color: string; sizeCm: number }; position: Vec3 }[]) {
+  // `fresh` ones play the generation effect: a spinning wireframe over a scan ring that
+  // resolves into the solid form.
+  setMemories(
+    list: { id: ItemId; form: { shape: string; color: string; sizeCm: number }; position: Vec3; fresh?: boolean }[],
+  ) {
     for (const item of [...this.items.values()]) {
       if (item.id in objectPositions || list.some((m) => m.id === item.id)) continue
       item.group.traverse((o) => (o as THREE.Mesh).geometry?.dispose())
@@ -240,7 +248,23 @@ export class DeriveScene {
       marker.renderOrder = 10
       marker.userData.id = m.id
       group.add(marker)
-      group.scale.setScalar(0.001)
+
+      let gen: Item['gen']
+      if (m.fresh) {
+        const body = group.children.filter((c): c is THREE.Mesh => (c as THREE.Mesh).isMesh)
+        const wire = new THREE.MeshBasicMaterial({ color: PARALLEL, wireframe: true, transparent: true })
+        const ring = new THREE.Mesh(
+          new THREE.RingGeometry(0.92, 1, 64),
+          new THREE.MeshBasicMaterial({ color: PARALLEL, transparent: true, side: THREE.DoubleSide, depthTest: false }),
+        )
+        ring.rotation.x = -Math.PI / 2
+        ring.position.y = 0.01
+        ring.renderOrder = 6
+        gen = { body, solid: body.map((b) => b.material as THREE.Material), wire, ring }
+        for (const b of body) b.material = wire
+        group.add(ring)
+        group.scale.setScalar(0.001)
+      }
       this.scene.add(group)
       this.items.set(m.id, {
         id: m.id,
@@ -251,7 +275,9 @@ export class DeriveScene {
         t: 1,
         height,
         idleMap: this.markerMemory,
-        grow: 0,
+        grow: m.fresh ? 0 : undefined,
+        born: performance.now(),
+        gen,
       })
     }
     this.setSelected(this.selected)
@@ -305,6 +331,74 @@ export class DeriveScene {
     const p = item.marker.getWorldPosition(new THREE.Vector3()).project(this.camera)
     const r = this.renderer.domElement.getBoundingClientRect()
     return { x: r.left + ((p.x + 1) / 2) * r.width, y: r.top + ((1 - p.y) / 2) * r.height }
+  }
+
+  // From outside, move in close on one object, keeping the side the camera is already on.
+  focusOn(id: ItemId, distance = 2.6) {
+    const item = this.items.get(id)
+    if (!item) return
+    const target = item.to.clone()
+    target.y += item.height / 2
+    this.focusPoint(target, distance)
+  }
+
+  focusPoint(target: THREE.Vector3, distance = 2.6) {
+    if (this.mode !== 'orbit') return
+    // Start from the side the camera is on, then swing around until nothing in the scan
+    // stands between the camera and the point.
+    const base = this.camera.position.clone().sub(target)
+    const heading = Math.atan2(base.x, base.z)
+    let toPos = target.clone().add(new THREE.Vector3(0, distance, 0.01))
+    search: for (const tilt of [0.75, 1.1]) {
+      for (const turn of [0, 0.6, -0.6, 1.2, -1.2, 1.9, -1.9, Math.PI]) {
+        const a = heading + turn
+        const dir = new THREE.Vector3(Math.sin(a) * Math.cos(tilt), Math.sin(tilt), Math.cos(a) * Math.cos(tilt))
+        const candidate = target.clone().addScaledVector(dir, distance)
+        this.sightRay.set(candidate, dir.clone().negate())
+        this.sightRay.far = distance - 0.3
+        if (this.apartment && this.sightRay.intersectObject(this.apartment, true).length) continue
+        toPos = candidate
+        break search
+      }
+    }
+    this.controls.enabled = false
+    this.flyTo(toPos, target, FLY_SECONDS, () => {
+      this.controls.target.copy(target)
+      this.controls.enabled = true
+      this.controls.update()
+    })
+  }
+
+  // Slowly circle the home (outside views only); used while a memory is being written.
+  setAutoRotate(on: boolean) {
+    this.controls.autoRotate = on
+    this.controls.autoRotateSpeed = 0.5
+  }
+
+  // Pulsing marker for "this is where it was", shown before a memory is placed.
+  setBeacon(position: Vec3 | null) {
+    if (this.beacon) disposeGroup(this.beacon)
+    this.beacon = null
+    if (!position) return
+    const g = new THREE.Group()
+    const mat = () => new THREE.MeshBasicMaterial({ color: ACCENT, transparent: true, depthTest: false, side: THREE.DoubleSide })
+    const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.005, 1.6, 6), mat())
+    beam.position.y = 0.8
+    ;(beam.material as THREE.MeshBasicMaterial).opacity = 0.7
+    const dot = new THREE.Mesh(new THREE.SphereGeometry(0.03, 16, 12), mat())
+    g.add(beam, dot)
+    for (let i = 0; i < 2; i++) {
+      const ring = new THREE.Mesh(new THREE.RingGeometry(0.94, 1, 64), mat())
+      ring.rotation.x = -Math.PI / 2
+      ring.position.y = 0.01
+      ring.userData.phase = i / 2
+      g.add(ring)
+    }
+    g.traverse((o) => (o.renderOrder = 7))
+    g.position.set(...position)
+    this.scene.add(g)
+    this.beacon = g
+    this.focusPoint(g.position.clone(), 3)
   }
 
   // Fly the camera to a configured angle. Walk views put you inside at eye height.
@@ -408,6 +502,12 @@ export class DeriveScene {
         cfg.url,
         (gltf) => {
           const model = gltf.scene
+          // the export also carries untextured collision hulls (UCX_*) over the visible mesh
+          const hulls: THREE.Object3D[] = []
+          model.traverse((o) => {
+            if (o.name.startsWith('UCX_')) hulls.push(o)
+          })
+          for (const h of hulls) h.removeFromParent()
           model.rotation.y = cfg.turn ?? 0
           const size = new THREE.Box3().setFromObject(model).getSize(new THREE.Vector3())
           model.scale.setScalar(cfg.size / Math.max(size.x, size.y, size.z))
@@ -662,6 +762,32 @@ export class DeriveScene {
     }
   }
 
+  // 0 → 0.7: wireframe grows and spins above a pulsing ring. 0.7 → 1: it turns solid and settles.
+  private animateGeneration(item: Item, g: number) {
+    const gen = item.gen
+    if (!gen) return
+    const grown = Math.min(1, g / 0.25)
+    item.group.scale.setScalar(Math.max(0.001, 1 - Math.pow(1 - grown, 3)))
+    const spin = Math.pow(1 - g, 2) * Math.PI * 10
+    for (const b of gen.body) b.rotation.y = spin
+    const solid = g >= 0.7
+    gen.body.forEach((b, i) => (b.material = solid ? gen.solid[i] : gen.wire))
+    ;(gen.wire as THREE.MeshBasicMaterial).opacity = 0.55 + 0.45 * Math.sin(g * 60)
+
+    // ring sized to the object, breathing while it works and fading out at the end
+    const r = Math.max(0.18, item.height * 0.9) * (1 + 0.25 * Math.sin(g * 40))
+    gen.ring.scale.setScalar(r / Math.max(item.group.scale.x, 0.001))
+    ;(gen.ring.material as THREE.MeshBasicMaterial).opacity = g < 0.7 ? 0.9 : Math.max(0, (1 - g) / 0.3) * 0.9
+
+    if (g >= 1) {
+      for (const b of gen.body) b.rotation.y = 0
+      gen.ring.geometry.dispose()
+      gen.ring.removeFromParent()
+      gen.wire.dispose()
+      item.gen = undefined
+    }
+  }
+
   private tick = () => {
     this.frame = requestAnimationFrame(this.tick)
     const now = performance.now()
@@ -669,9 +795,9 @@ export class DeriveScene {
     this.lastTime = now
     for (const item of this.items.values()) {
       if (item.grow !== undefined && item.grow < 1) {
-        item.grow = Math.min(1, item.grow + dt / 1.1)
-        const k = 1 - Math.pow(1 - item.grow, 3)
-        item.group.scale.setScalar(Math.max(0.001, k))
+        // wall-clock, so it ends together with the progress bar on the card even if frames drop
+        item.grow = Math.min(1, (now - (item.born ?? now)) / (GENERATE_SECONDS * 1000))
+        this.animateGeneration(item, item.grow)
       }
       if (item.t >= 1) continue
       item.t = Math.min(1, item.t + dt / MOVE_SECONDS)
@@ -694,6 +820,14 @@ export class DeriveScene {
       this.updateWalk(dt)
     } else {
       this.controls.update()
+    }
+    if (this.beacon) {
+      for (const ring of this.beacon.children) {
+        if (ring.userData.phase === undefined) continue
+        const k = (now / 1800 + ring.userData.phase) % 1
+        ring.scale.setScalar(0.08 + k * 0.5)
+        ;((ring as THREE.Mesh).material as THREE.MeshBasicMaterial).opacity = 1 - k
+      }
     }
     this.updateMarkers()
     this.renderer.render(this.scene, this.camera)
