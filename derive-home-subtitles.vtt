@@ -1,0 +1,172 @@
+WEBVTT
+
+1
+00:00:01.000 --> 00:00:04.500
+A home is never lived in only once.
+
+2
+00:00:06.500 --> 00:00:10.000
+People move out.
+The coordinates stay.
+
+3
+00:00:12.000 --> 00:00:17.000
+Every 3D scan of a home captures
+a single moment.
+
+4
+00:00:18.000 --> 00:00:22.000
+We added the missing dimension: time.
+
+5
+00:00:24.500 --> 00:00:29.500
+Dérive Home is a spatial memory map.
+One apartment. Three eras.
+
+6
+00:00:31.000 --> 00:00:36.000
+Change the year, and every object
+returns to where it stood.
+
+7
+00:00:37.500 --> 00:00:41.500
+Think of it as version history
+for a home.
+
+8
+00:00:45.000 --> 00:00:50.000
+The apartment is a textured 3D scan,
+rendered in real time in the browser.
+
+9
+00:00:52.000 --> 00:00:57.000
+Orbit it from above, or step inside
+at eye level and walk through it.
+
+10
+00:00:59.000 --> 00:01:04.000
+Each object carries a versioned record:
+owner, location and story, per era.
+
+11
+00:01:05.500 --> 00:01:10.000
+Its movement across the decades
+is drawn as a path through the rooms.
+
+12
+00:01:14.000 --> 00:01:18.500
+But a home's history is not finished.
+Anyone can write the next layer.
+
+13
+00:01:20.500 --> 00:01:25.500
+Describe a memory in plain language,
+typed or spoken, in any language.
+
+14
+00:01:27.500 --> 00:01:32.000
+A large language model decomposes it
+into structured data.
+
+15
+00:01:33.500 --> 00:01:38.000
+Time. Object. Place.
+People. Event. Emotion.
+
+16
+00:01:40.000 --> 00:01:44.500
+The model is constrained
+to what was actually said.
+
+17
+00:01:45.000 --> 00:01:50.000
+Where something is missing, it marks
+its uncertainty instead of inventing.
+
+18
+00:01:52.000 --> 00:01:57.500
+Spatial grounding: "by the balcony door"
+resolves to a real coordinate in the scan.
+
+19
+00:01:59.000 --> 00:02:04.000
+Temporal grounding: the memory joins
+the era of the home it belongs to.
+
+20
+00:02:06.000 --> 00:02:11.000
+From words alone, the system derives
+a form: shape, colour and scale.
+
+21
+00:02:13.000 --> 00:02:18.500
+It also writes a counterfactual: the parallel
+home where the moment went differently.
+
+22
+00:02:20.500 --> 00:02:24.500
+The memory materialises in the room.
+
+23
+00:02:25.500 --> 00:02:30.500
+Nothing is overwritten. Every version
+of the home runs alongside the others.
+
+24
+00:02:34.000 --> 00:02:39.500
+A book. A camera. A lamp. A record. A mug.
+A recipe notebook. An archive box. A plant.
+
+25
+00:02:41.000 --> 00:02:46.000
+Four are generative 3D assets, created from
+text with physically based materials.
+
+26
+00:02:47.500 --> 00:02:52.000
+Ordinary things, holding
+what no floor plan records.
+
+27
+00:02:55.000 --> 00:02:58.000
+Where this goes next.
+
+28
+00:02:59.000 --> 00:03:04.000
+Scan your own home. Rebuild a remembered
+object in 3D from a single photograph.
+
+29
+00:03:05.000 --> 00:03:10.000
+Shared layers, so a family or a whole
+building can write into the same space.
+
+30
+00:03:12.000 --> 00:03:16.500
+For real estate: a listing shows a space.
+This shows a life.
+
+31
+00:03:17.500 --> 00:03:21.500
+For rentals: a handover
+of what the walls already know.
+
+32
+00:03:22.500 --> 00:03:27.000
+For museums and historic houses: visitors
+leave a memory, not just read one.
+
+33
+00:03:28.000 --> 00:03:32.500
+For families: a home preserved,
+with its stories, before it is sold.
+
+34
+00:03:35.000 --> 00:03:40.000
+Space becomes an archive that people
+can read, walk through and add to.
+
+35
+00:03:41.500 --> 00:03:46.500
+A home is a sequence of lives
+occupying the same coordinates.

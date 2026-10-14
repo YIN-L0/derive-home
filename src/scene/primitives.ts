@@ -75,6 +75,83 @@ const builders: Record<ObjectId, () => THREE.Group> = {
     g.add(mesh(new THREE.BoxGeometry(0.41, 0.05, 0.29), mat(0x3a3a35), 0, 0.155, 0))
     return g
   },
+  radio() {
+    const g = new THREE.Group()
+    g.add(mesh(new THREE.BoxGeometry(0.3, 0.18, 0.1), mat(0x7a4a2c, 0.6), 0, 0.09, 0))
+    const speaker = mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.012, 24), mat(0xd8c9a3, 0.9), -0.07, 0.09, 0.052)
+    speaker.rotation.x = Math.PI / 2
+    g.add(speaker)
+    g.add(mesh(new THREE.BoxGeometry(0.1, 0.035, 0.012), mat(0xf2ead8, 0.4), 0.075, 0.12, 0.052))
+    const aerial = mesh(new THREE.CylinderGeometry(0.004, 0.004, 0.3, 6), mat(0xb9b9bd, 0.3), 0.12, 0.3, -0.03)
+    aerial.rotation.z = -0.3
+    g.add(aerial)
+    return g
+  },
+  umbrella() {
+    const g = new THREE.Group()
+    const canopy = mesh(new THREE.ConeGeometry(0.055, 0.7, 12), mat(0x1f2a44, 0.7), 0, 0.37, 0)
+    canopy.rotation.x = Math.PI // furled, tip on the floor
+    g.add(canopy)
+    g.add(mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.14, 8), mat(0x1d1d1f, 0.5), 0, 0.79, 0))
+    const hook = mesh(new THREE.TorusGeometry(0.035, 0.009, 8, 16, Math.PI), mat(0x7a4a2c, 0.5), 0.035, 0.86, 0)
+    g.add(hook)
+    return g
+  },
+  candle() {
+    const g = new THREE.Group()
+    const brass = mat(0xb08d3c, 0.35)
+    g.add(mesh(new THREE.CylinderGeometry(0.055, 0.065, 0.02, 24), brass, 0, 0.01, 0))
+    g.add(mesh(new THREE.CylinderGeometry(0.012, 0.018, 0.1, 12), brass, 0, 0.07, 0))
+    g.add(mesh(new THREE.CylinderGeometry(0.03, 0.02, 0.02, 16), brass, 0, 0.13, 0))
+    g.add(mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.16, 12), mat(0xf4f1ea, 0.6), 0, 0.22, 0))
+    return g
+  },
+  suitcase() {
+    const g = new THREE.Group()
+    g.add(mesh(new THREE.BoxGeometry(0.62, 0.42, 0.2), mat(0x6b4a32, 0.7), 0, 0.21, 0))
+    g.add(mesh(new THREE.BoxGeometry(0.63, 0.03, 0.205), mat(0x3d2a1c, 0.6), 0, 0.21, 0))
+    g.add(mesh(new THREE.TorusGeometry(0.06, 0.012, 8, 16, Math.PI), mat(0x3d2a1c, 0.5), 0, 0.42, 0))
+    return g
+  },
+  typewriter() {
+    const g = new THREE.Group()
+    const body = mat(0x2c3a36, 0.45)
+    g.add(mesh(new THREE.BoxGeometry(0.34, 0.07, 0.32), body, 0, 0.035, 0))
+    g.add(mesh(new THREE.BoxGeometry(0.3, 0.07, 0.14), body, 0, 0.105, -0.08))
+    const roller = mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.4, 16), mat(0x111111, 0.4), 0, 0.16, -0.1)
+    roller.rotation.z = Math.PI / 2
+    g.add(roller)
+    g.add(mesh(new THREE.BoxGeometry(0.26, 0.012, 0.12), mat(0xd8c9a3, 0.6), 0, 0.078, 0.08))
+    g.add(mesh(new THREE.BoxGeometry(0.2, 0.16, 0.004), mat(0xf4f1ea, 0.9), 0, 0.24, -0.12))
+    return g
+  },
+  quilt() {
+    const g = new THREE.Group()
+    g.add(mesh(new THREE.BoxGeometry(0.5, 0.06, 0.4), mat(0x9a4a46, 0.95), 0, 0.03, 0))
+    g.add(mesh(new THREE.BoxGeometry(0.48, 0.06, 0.38), mat(0xd9c7a8, 0.95), 0.01, 0.09, 0))
+    g.add(mesh(new THREE.BoxGeometry(0.46, 0.05, 0.36), mat(0x3f5f7a, 0.95), 0, 0.145, 0.01))
+    return g
+  },
+  bottle() {
+    const g = new THREE.Group()
+    const glass = new THREE.MeshStandardMaterial({ color: 0xd9a441, roughness: 0.15, transparent: true, opacity: 0.8 })
+    g.add(mesh(new THREE.BoxGeometry(0.07, 0.09, 0.04), glass, 0, 0.045, 0))
+    g.add(mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.025, 12), mat(0xb08d3c, 0.3), 0, 0.1, 0))
+    g.add(mesh(new THREE.SphereGeometry(0.02, 16, 12), mat(0xb08d3c, 0.3), 0, 0.128, 0))
+    return g
+  },
+  wateringcan() {
+    const g = new THREE.Group()
+    const zinc = mat(0x8a9a94, 0.4)
+    g.add(mesh(new THREE.CylinderGeometry(0.11, 0.12, 0.24, 24), zinc, 0, 0.12, 0))
+    const spout = mesh(new THREE.CylinderGeometry(0.012, 0.02, 0.3, 10), zinc, 0.2, 0.19, 0)
+    spout.rotation.z = -0.9
+    g.add(spout)
+    const handle = mesh(new THREE.TorusGeometry(0.085, 0.01, 8, 20, Math.PI), zinc, -0.1, 0.17, 0)
+    handle.rotation.z = Math.PI / 2
+    g.add(handle)
+    return g
+  },
 }
 
 export function createPrimitive(id: ObjectId): THREE.Group {

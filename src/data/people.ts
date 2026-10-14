@@ -20,7 +20,7 @@ export const PEOPLE: Person[] = [
     year: 1998,
     bio: 'Lived here for thirty-one years. Read on trains, cooked for other people, and was always the last one awake.',
     fate: 'Died 2011',
-    objects: ['book', 'mug', 'notebook', 'camera', 'record', 'plant', 'lamp', 'archive'],
+    objects: ['book', 'mug', 'notebook', 'camera', 'record', 'plant', 'lamp', 'archive', 'radio', 'candle', 'typewriter', 'quilt', 'bottle', 'wateringcan'],
   },
   {
     id: 'paul',
@@ -29,7 +29,7 @@ export const PEOPLE: Person[] = [
     year: 1998,
     bio: 'Gone two years by 1998, and still in every room: his record on the shelf, his letters in the box, his name in the recipes.',
     fate: 'Died 1996',
-    objects: ['record', 'archive', 'notebook'],
+    objects: ['record', 'archive', 'notebook', 'radio', 'typewriter', 'bottle', 'candle'],
   },
   {
     id: 'antoine',
@@ -38,7 +38,7 @@ export const PEOPLE: Person[] = [
     year: 1998,
     bio: 'Moved back in with Sophie and Camille that year. Came home latest, to a lamp left on for him.',
     fate: 'Divorced from Sophie, 2004',
-    objects: ['box', 'lamp', 'camera', 'archive'],
+    objects: ['box', 'lamp', 'camera', 'archive', 'umbrella', 'typewriter', 'suitcase'],
   },
   {
     id: 'sophie',
@@ -47,7 +47,7 @@ export const PEOPLE: Person[] = [
     year: 1998,
     bio: 'Packed the boxes and labelled every one. Her handwriting is still on the one that was never opened.',
     fate: 'Divorced from Antoine, 2004',
-    objects: ['box', 'camera', 'archive'],
+    objects: ['box', 'camera', 'archive', 'suitcase'],
   },
   {
     id: 'camille',
@@ -55,7 +55,7 @@ export const PEOPLE: Person[] = [
     role: 'Daughter of Antoine and Sophie',
     year: 1998,
     bio: 'Seven years old in 1998, and learning to dance in the hallway. Most of the photographs in the archive box are of Camille.',
-    objects: ['notebook', 'camera', 'record', 'archive'],
+    objects: ['notebook', 'camera', 'record', 'archive', 'candle', 'quilt'],
   },
   {
     id: 'idris',
@@ -63,7 +63,7 @@ export const PEOPLE: Person[] = [
     role: 'Tenant',
     year: 2018,
     bio: 'The first tenant to move in. Found the camera in a cupboard and photographed the street, one frame a week.',
-    objects: ['camera', 'book', 'lamp', 'archive'],
+    objects: ['camera', 'book', 'lamp', 'archive', 'radio', 'umbrella'],
   },
   {
     id: 'noor',
@@ -71,7 +71,7 @@ export const PEOPLE: Person[] = [
     role: 'Tenant',
     year: 2018,
     bio: 'Cooked from the recipe notebook on Sundays and kept the plant alive without ever admitting it.',
-    objects: ['notebook', 'plant', 'mug', 'book', 'archive'],
+    objects: ['notebook', 'plant', 'mug', 'book', 'archive', 'candle', 'typewriter', 'wateringcan', 'umbrella'],
   },
   {
     id: 'tomas',
@@ -79,7 +79,7 @@ export const PEOPLE: Person[] = [
     role: 'Tenant',
     year: 2018,
     bio: 'Arrived with four boxes and a turntable. Responsible for the scratch on side B.',
-    objects: ['record', 'box', 'book', 'archive'],
+    objects: ['record', 'box', 'book', 'archive', 'umbrella', 'suitcase', 'quilt'],
   },
   {
     id: 'lina',
@@ -87,6 +87,6 @@ export const PEOPLE: Person[] = [
     role: 'Current resident',
     year: 2026,
     bio: 'Works from the bedroom and is moving out this month. Packing slowly, and photographing every room first.',
-    objects: ['book', 'mug', 'notebook', 'camera', 'record', 'plant', 'box', 'lamp', 'archive'],
+    objects: ['book', 'mug', 'notebook', 'camera', 'record', 'plant', 'box', 'lamp', 'archive', 'radio', 'umbrella', 'candle', 'suitcase', 'typewriter', 'quilt', 'bottle', 'wateringcan'],
   },
 ]

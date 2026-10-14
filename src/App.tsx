@@ -7,6 +7,12 @@ import { MemoryCard } from './memory/MemoryCard'
 import { MemoryDialog } from './memory/MemoryDialog'
 import { loadMemories, saveMemories } from './memory/api'
 import { isMemoryId, type MemoryAnalysis, type UserMemory } from './memory/types'
+import { AgentActivity } from './agents/AgentActivity'
+import { PlayButton } from './agents/PlayButton'
+import { InterviewDialog } from './agents/InterviewDialog'
+import { StoryDialog } from './agents/StoryDialog'
+import { CompareDialog } from './agents/CompareDialog'
+import { applyInterview, linkMemory, loadStory, saveStory, type InterviewFields, type Story } from './agents/api'
 
 type Filter = 'all' | Layer
 const FILTERS: Filter[] = ['all', 'family', 'tenants', 'current']
@@ -29,6 +35,11 @@ export default function App() {
   const [view, setView] = useState<string | null>(viewpoints[0].id)
   const [mode, setMode] = useState<'orbit' | 'walk'>('orbit')
   const [generated, setGenerated] = useState<ObjectId[]>([])
+  // the agent dialogs share the left side of the screen with "Leave a memory": one at a time
+  const [panel, setPanel] = useState<'interview' | 'story' | 'compare' | null>(null)
+  const [linking, setLinking] = useState<string | null>(null)
+  const [story, setStory] = useState<Story | null>(loadStory)
+  const [showStory, setShowStory] = useState(true)
 
   useEffect(() => {
     const s = new DeriveScene(
@@ -90,6 +101,58 @@ export default function App() {
   // the home turns slowly while a memory is being written
   useEffect(() => scene.current?.setAutoRotate(memoryDialog), [memoryDialog])
 
+  // LITERATURE layer: the scenes of the imported story that could be staged in this home
+  useEffect(() => {
+    saveStory(story)
+    const staged = (story?.scenes ?? []).flatMap((s) => {
+      const spot = memorySpots.find((p) => p.id === s.spotId)
+      return spot ? [{ order: s.order, position: spot.position }] : []
+    })
+    scene.current?.setStory(showStory ? staged : null)
+  }, [story, showStory])
+
+  // Saving or updating a memory hands it to the Historian, which looks for it elsewhere in time.
+  const runHistorian = (memory: UserMemory, others: UserMemory[]) => {
+    setLinking(memory.id)
+    linkMemory(memory, others)
+      .then((links) => setMemories((list) => list.map((m) => (m.id === memory.id ? { ...m, links } : m))))
+      .catch(() => {}) // the activity panel shows the error; the memory is kept as it is
+      .finally(() => setLinking((id) => (id === memory.id ? null : id)))
+  }
+
+  const saveInterview = (fields: InterviewFields) => {
+    if (!selectedMemory) return
+    const updated = applyInterview(selectedMemory, fields)
+    setMemories((list) => list.map((m) => (m.id === updated.id ? updated : m)))
+    setPanel(null)
+    // a year learned in the interview can move the memory to another version of the home
+    if (updated.analysis.layer !== selectedMemory.analysis.layer && YEARS.includes(updated.analysis.layer as Year)) setYear(updated.analysis.layer as Year)
+    runHistorian(updated, memories.filter((m) => m.id !== updated.id))
+  }
+
+  // Open whatever a Historian link or a comparison row points at.
+  const openNode = (id: string) => {
+    if (id.startsWith('person-')) {
+      const p = PEOPLE.find((x) => `person-${x.id}` === id)
+      if (!p) return
+      setYear(p.year)
+      setPersonId(p.id)
+      return
+    }
+    setFilter('all')
+    setPersonId(null)
+    setSelected(id as ItemId)
+    if (isMemoryId(id)) return
+    setShowPath(true)
+    scene.current?.focusOn(id as ItemId, 4)
+    setView(null)
+  }
+
+  const openPanel = (next: typeof panel) => {
+    setMemoryDialog(false)
+    setPanel(next)
+  }
+
   // Put an analysed memory into the room as a new object and open its card.
   const placeMemory = (text: string, analysis: MemoryAnalysis, photo?: string) => {
     const spot = memorySpots.find((s) => s.id === analysis.place.spotId) ?? memorySpots[0]
@@ -107,6 +170,7 @@ export default function App() {
       createdAt: Date.now(),
     }
     setMemories((list) => [...list, memory])
+    runHistorian(memory, memories)
     setMemoryDialog(false)
     setSelected(memory.id)
     if (YEARS.includes(analysis.layer as Year)) setYear(analysis.layer as Year)
@@ -127,6 +191,8 @@ export default function App() {
   }, [])
 
   const route = personRoutes[year]
+  // the interview belongs to the selected memory: deselecting it ends the interview
+  const dialogOpen = memoryDialog || (panel !== null && (panel !== 'interview' || !!selectedMemory))
 
   return (
     <>
@@ -179,6 +245,12 @@ export default function App() {
             <input type="checkbox" checked={showMovement} onChange={(e) => setShowMovement(e.target.checked)} />
             Show Movement
           </label>
+          {story && (
+            <label className="toggle story">
+              <input type="checkbox" checked={showStory} onChange={(e) => setShowStory(e.target.checked)} />
+              Literature · {story.title}
+            </label>
+          )}
           {showMovement && (
             <div className="route">
               <strong>{route.person}</strong>
@@ -200,6 +272,9 @@ export default function App() {
         {selectedMemory && (
           <MemoryCard
             memory={selectedMemory}
+            linking={linking === selectedMemory.id}
+            onInterview={() => openPanel('interview')}
+            onOpenLink={openNode}
             onClose={() => setSelected(null)}
             onRemove={() => {
               setMemories((list) => list.filter((m) => m.id !== selectedMemory.id))
@@ -240,22 +315,50 @@ export default function App() {
         )}
       </nav>
 
-      {memoryDialog ? (
+      {memoryDialog && (
         <MemoryDialog
           onPlace={placeMemory}
           onPreview={(spotId) => scene.current?.setBeacon(memorySpots.find((s) => s.id === spotId)?.position ?? null)}
           onClose={() => setMemoryDialog(false)}
         />
-      ) : (
-        !endCard && (
+      )}
+      {panel === 'interview' && selectedMemory && (
+        <InterviewDialog key={selectedMemory.id} memory={selectedMemory} onSave={saveInterview} onClose={() => setPanel(null)} />
+      )}
+      {panel === 'story' && (
+        <StoryDialog
+          story={story}
+          onStory={(next) => {
+            setStory(next)
+            if (next) setShowStory(true)
+          }}
+          onFocus={(spotId) => scene.current?.setBeacon(memorySpots.find((s) => s.id === spotId)?.position ?? null)}
+          onClose={() => {
+            scene.current?.setBeacon(null)
+            setPanel(null)
+          }}
+        />
+      )}
+      {panel === 'compare' && (
+        <CompareDialog memories={memories} year={year} onYear={setYear} onSelect={openNode} onClose={() => setPanel(null)} />
+      )}
+      {!dialogOpen && !endCard && (
+        <div className="dock">
           <button className="memory-open" onClick={() => setMemoryDialog(true)}>
             <span className="pulse" />
             Leave a memory
           </button>
-        )
+          <button className="memory-open plain" onClick={() => openPanel('story')}>
+            Import a story
+          </button>
+          <button className="memory-open plain" onClick={() => openPanel('compare')}>
+            Compare eras
+          </button>
+        </div>
       )}
+      {!endCard && <AgentActivity shifted={dialogOpen} />}
 
-      {!selectedItem && !endCard && !memoryDialog && (
+      {!selectedItem && !endCard && !dialogOpen && (
         <footer className={`hint ${mode}`}>
           {status === 'loading' && 'Loading the apartment…'}
           {status === 'ready' && 'Select an object to follow its history through the home.'}
@@ -315,6 +418,7 @@ function StoryCard(props: {
         <dd>{o.locationByYear[year]}</dd>
       </dl>
       <p className="story">{o.storyByYear[year]}</p>
+      <PlayButton text={o.storyByYear[year]} label="Listen" />
 
       {o.foundInside && (
         <section>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { memorySpots } from '../config/scene'
 import { ERAS } from '../data/objects'
+import { PlayButton } from '../agents/PlayButton'
 import type { UserMemory } from './types'
 import './memory.css'
 
@@ -38,7 +39,14 @@ function Generating({ memory: m }: { memory: UserMemory }) {
 }
 
 // Story card for a memory the visitor placed, shown where the built-in object cards go.
-export function MemoryCard(props: { memory: UserMemory; onRemove: () => void; onClose: () => void }) {
+export function MemoryCard(props: {
+  memory: UserMemory
+  linking: boolean // the Historian is reading this memory right now
+  onInterview: () => void
+  onOpenLink: (targetId: string) => void
+  onRemove: () => void
+  onClose: () => void
+}) {
   const { memory: m } = props
   const a = m.analysis
   const spot = memorySpots.find((s) => s.id === a.place.spotId)
@@ -53,6 +61,9 @@ export function MemoryCard(props: { memory: UserMemory; onRemove: () => void; on
       <h2>{a.title}</h2>
       <p className="summary">{a.object.description}</p>
       <Generating key={m.id} memory={m} />
+      <button className="link talk" onClick={props.onInterview}>
+        Talk about this memory <span>●</span>
+      </button>
 
       <dl>
         <dt>When</dt>
@@ -62,7 +73,10 @@ export function MemoryCard(props: { memory: UserMemory; onRemove: () => void; on
         {a.people.length > 0 && (
           <>
             <dt>Who</dt>
-            <dd>{a.people.join(', ')}</dd>
+            <dd>
+              {a.people.join(', ')}
+              {m.relationship && <em> · {m.relationship}</em>}
+            </dd>
           </>
         )}
         {era && (
@@ -75,6 +89,42 @@ export function MemoryCard(props: { memory: UserMemory; onRemove: () => void; on
         )}
       </dl>
       <p className="story">{a.story}</p>
+      <PlayButton text={a.story} label="Listen" />
+
+      <section>
+        <div className="label">Across time · Historian</div>
+        {props.linking && <p className="small">Reading it against the rest of the home…</p>}
+        {!props.linking && m.links?.length === 0 && (
+          <p className="small">No confident connection to another object, person or memory. Nothing was merged.</p>
+        )}
+        {!props.linking && !m.links && <p className="small">Not read by the Historian yet.</p>}
+        {!!m.links?.length && (
+          <ul className="links">
+            {m.links.map((l) => (
+              <li key={l.targetId + l.relationship}>
+                <button onClick={() => props.onOpenLink(l.targetId)}>
+                  <span className="rel">
+                    {l.relationship.replace(/_/g, ' ')}
+                    <code>{Math.round(l.confidence * 100)}%</code>
+                  </span>
+                  <strong>{l.targetName}</strong>
+                  <span className="reason">{l.reason}</span>
+                  {l.timeline.length > 0 && (
+                    <ol>
+                      {l.timeline.map((t, i) => (
+                        <li key={i}>
+                          <span className="num">{t.year ?? '—'}</span>
+                          <span>{[t.person, t.location].filter(Boolean).join(' · ') || 'Unknown'}</span>
+                        </li>
+                      ))}
+                    </ol>
+                  )}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       <section className="parallel">
         <div className="label">Meanwhile</div>

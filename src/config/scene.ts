@@ -9,7 +9,9 @@ export type Vec3 = [number, number, number]
 export type Year = 1998 | 2018 | 2026
 export const YEARS: Year[] = [1998, 2018, 2026]
 
-export type ObjectId = 'book' | 'mug' | 'notebook' | 'camera' | 'record' | 'plant' | 'box' | 'lamp' | 'archive'
+export type ObjectId =
+  | 'book' | 'mug' | 'notebook' | 'camera' | 'record' | 'plant' | 'box' | 'lamp' | 'archive'
+  | 'radio' | 'umbrella' | 'candle' | 'suitcase' | 'typewriter' | 'quilt' | 'bottle' | 'wateringcan'
 
 export const FLOOR_Y = -1.15
 
@@ -51,6 +53,7 @@ export const viewpoints: Viewpoint[] = [
   { id: 'kitchen', label: 'Kitchen', mode: 'walk', position: [0.45, EYE_Y, 3.97], target: [-0.7, -0.5, 5.6] },
   { id: 'bedroom', label: 'Bedroom', mode: 'walk', position: [-3.2, EYE_Y, -0.5], target: [-5.6, -0.2, -1.2] },
   { id: 'hall', label: 'Hallway', mode: 'walk', position: [0, EYE_Y, -1.83], target: [-0.6, -0.6, 1.5] },
+  { id: 'second', label: 'Second Bedroom', mode: 'walk', position: [3.4, EYE_Y, -1.2], target: [4.6, -0.6, 0.6] },
 ]
 
 // Named spots measured from the scan. Reuse them below or type raw [x, y, z].
@@ -72,6 +75,23 @@ const spot = {
   hallFloor: [0, -1.15, -1.83],
   livingFloor: [-0.98, -1.15, -0.73],
   onMovingBox: [-0.98, -0.79, -0.73], // livingFloor + box height (0.36)
+  // the rest of the home, measured the same way
+  counterByStove: [-0.15, -0.28, 3.4],
+  counterCorner: [1.4, -0.3, 4.5],
+  diningTable: [2.3, -0.43, 1.2],
+  desk: [3.9, -0.37, 0.5],
+  deskEnd: [4.0, -0.37, 0.95],
+  bed: [-4.0, -0.52, -1.8], // on the bed in the main bedroom
+  secondBed: [5.2, -0.6, -0.3], // on the bed in the second bedroom
+  secondBedroomFloor: [4.3, -1.17, -2.0],
+  secondBedroomWindow: [4.5, -1.15, 1.3],
+  secondBedroomDoor: [3.0, -1.21, -2.2],
+  frontDoor: [0.4, -1.16, -3.4],
+  hallByDoor: [0.6, -1.17, -2.4],
+  vanity: [-4.1, -0.22, -5.0], // between the two basins in the main bathroom
+  bathCounter: [5.7, -0.31, -3.45], // second bathroom
+  balcony: [-4.6, -1.19, 3.9],
+  balconyCorner: [-4.2, -1.2, 4.7],
 } satisfies Record<string, Vec3>
 
 // Places where a memory described by a visitor can be put (the "Leave a memory" dialog).
@@ -137,6 +157,46 @@ export const objectPositions: Record<ObjectId, Record<Year, Vec3>> = {
     1998: spot.shelfCabinetMid,
     2018: spot.bedroomFloor,
     2026: spot.hallFloor,
+  },
+  radio: {
+    1998: spot.counterByStove,
+    2018: spot.deskEnd,
+    2026: spot.counterCorner,
+  },
+  umbrella: {
+    1998: spot.frontDoor,
+    2018: spot.secondBedroomDoor,
+    2026: spot.frontDoor,
+  },
+  candle: {
+    1998: spot.diningTable,
+    2018: spot.counterCorner,
+    2026: spot.diningTable,
+  },
+  suitcase: {
+    1998: spot.secondBedroomFloor,
+    2018: spot.hallByDoor,
+    2026: spot.secondBedroomWindow,
+  },
+  typewriter: {
+    1998: spot.desk,
+    2018: spot.desk,
+    2026: spot.desk,
+  },
+  quilt: {
+    1998: spot.bed,
+    2018: spot.secondBed,
+    2026: spot.bed,
+  },
+  bottle: {
+    1998: spot.vanity,
+    2018: spot.vanity,
+    2026: spot.bathCounter,
+  },
+  wateringcan: {
+    1998: spot.balcony,
+    2018: spot.balcony,
+    2026: spot.balconyCorner,
   },
 }
 

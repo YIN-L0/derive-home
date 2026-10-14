@@ -26,6 +26,7 @@ export const GENERATE_SECONDS = 6 // keep in step with GENERATE_MS in memory/Mem
 const MOVE_SECONDS = 0.8
 const ACCENT = '#e11d1d'
 const ROUTE_COLOR = 0xffffff
+const STORY_COLOR = '#d9c08a' // the LITERATURE layer; keep in step with --story in agents/agents.css
 const FLY_SECONDS = 1.1
 const WALK_SPEED = 2.2 // m/s
 const TURN_SPEED = 1.6 // rad/s
@@ -57,6 +58,28 @@ function pathGroup(points: THREE.Vector3[], color: number, radius: number, smoot
   return g
 }
 
+// A numbered disc that always faces the camera, for the scenes of an imported story.
+function numberSprite(n: number, color: string) {
+  const c = document.createElement('canvas')
+  c.width = c.height = 96
+  const ctx = c.getContext('2d')!
+  ctx.beginPath()
+  ctx.arc(48, 48, 42, 0, Math.PI * 2)
+  ctx.fillStyle = color
+  ctx.fill()
+  ctx.fillStyle = '#0a0a0a'
+  ctx.font = '600 50px Helvetica, Arial, sans-serif'
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText(String(n), 48, 52)
+  const map = new THREE.CanvasTexture(c)
+  map.colorSpace = THREE.SRGBColorSpace
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map, depthTest: false, transparent: true }))
+  sprite.scale.setScalar(0.2)
+  sprite.renderOrder = 12
+  return sprite
+}
+
 function disposeGroup(g: THREE.Group) {
   g.traverse((o) => {
     const m = o as THREE.Mesh
@@ -77,6 +100,7 @@ interface Item {
   to: THREE.Vector3
   t: number // 0..1 progress of the current move; 1 = at rest
   height: number
+  hidden?: boolean // something in the scan stands between the camera and the object
 }
 
 export interface SceneCallbacks {
@@ -131,7 +155,11 @@ export class DeriveScene {
   private dragging = false
   private sightRay = new THREE.Raycaster()
   private frameCount = 0
+  private sightTurn = 0
+  private sightPending = 0
+  private sightFrom = new THREE.Vector3(NaN)
   private objectPath: THREE.Group | null = null
+  private story: THREE.Group | null = null
   private frame = 0
   private down = { x: 0, y: 0 }
   private debug: boolean
@@ -323,6 +351,42 @@ export class DeriveScene {
       this.objectPath.add(dot)
     }
     this.scene.add(this.objectPath)
+  }
+
+  // The LITERATURE layer: the scenes of an imported story, numbered in order where they are
+  // staged in the home, joined by a line. An empty list or null removes the layer.
+  setStory(scenes: { order: number; position: Vec3 }[] | null) {
+    if (this.story) {
+      this.story.traverse((o) => ((o as THREE.Sprite).isSprite ? (o as THREE.Sprite).material.map?.dispose() : undefined))
+      disposeGroup(this.story)
+    }
+    this.story = null
+    if (!scenes?.length) return
+    // scenes sharing a spot fan out around it so every number stays readable
+    const seen = new Map<string, number>()
+    const stops = scenes.map((s) => {
+      const key = s.position.join()
+      const n = seen.get(key) ?? 0
+      seen.set(key, n + 1)
+      return new THREE.Vector3(s.position[0] + Math.cos(n * 2.1) * 0.5 * Math.min(n, 1), s.position[1] + 0.42, s.position[2] + Math.sin(n * 2.1) * 0.5 * Math.min(n, 1))
+    })
+    const g = new THREE.Group()
+    if (stops.length > 1) {
+      const pts: THREE.Vector3[] = [stops[0]]
+      for (let i = 1; i < stops.length; i++) {
+        const mid = stops[i - 1].clone().lerp(stops[i], 0.5)
+        mid.y = Math.max(stops[i - 1].y, stops[i].y) + Math.min(0.7, 0.15 + stops[i - 1].distanceTo(stops[i]) * 0.2)
+        pts.push(mid, stops[i])
+      }
+      g.add(pathGroup(pts, new THREE.Color(STORY_COLOR).getHex(), 0.012, true))
+    }
+    stops.forEach((p, i) => {
+      const sprite = numberSprite(scenes[i].order, STORY_COLOR)
+      sprite.position.copy(p)
+      g.add(sprite)
+    })
+    this.scene.add(g)
+    this.story = g
   }
 
   // Pixel position of an object's marker; exposed as window.__derive in ?debug mode for scripted checks.
@@ -742,10 +806,18 @@ export class DeriveScene {
   // (shrinking with distance) and hidden while the object is behind a wall or furniture.
   private updateMarkers() {
     const world = new THREE.Vector3()
-    if (this.mode === 'walk' && this.apartment) {
-      // one line-of-sight check per frame, taking the objects in turn
+    // A ray through the whole scan is costly, so only one object is checked, every few frames,
+    // taking them in turn: each marker catches up within a second or two of the camera moving.
+    // Nothing is checked while the camera and the objects are still.
+    const moving = [...this.items.values()].some((i) => i.t < 1)
+    if (moving || !this.sightFrom.equals(this.camera.position)) {
+      this.sightFrom.copy(this.camera.position)
+      this.sightPending = this.items.size
+    }
+    if (this.apartment && this.sightPending > 0 && this.frameCount++ % 4 === 0) {
+      this.sightPending--
       const list = [...this.items.values()]
-      const item = list[this.frameCount++ % list.length]
+      const item = list[this.sightTurn++ % list.length]
       world.copy(item.group.position)
       world.y += item.height / 2
       const dir = world.sub(this.camera.position)
@@ -753,12 +825,29 @@ export class DeriveScene {
       this.sightRay.set(this.camera.position, dir.normalize())
       this.sightRay.far = dist
       const wall = this.sightRay.intersectObject(this.apartment, true)[0]
-      item.marker.visible = !wall || wall.distance > dist - 0.3
+      item.hidden = !!wall && wall.distance < dist - 0.3
     }
     for (const item of this.items.values()) {
-      const dist = item.marker.getWorldPosition(world).distanceTo(this.camera.position)
-      const size = this.mode === 'walk' ? Math.min(0.1, dist * 0.035) : dist * 0.0235
-      item.marker.scale.setScalar(item.id === this.selected ? size * 1.3 : size)
+      const active = item.id === this.selected
+      // Inside, a marker whose object is behind a wall is not drawn. From outside it stays,
+      // small and faint, so the object can still be found; the selected one is always full.
+      item.marker.visible = this.mode !== 'walk' || !item.hidden || active
+      const faint = item.hidden && !active
+      item.marker.material.opacity = faint ? 0.3 : 1
+      const dist = world.copy(item.group.position).distanceTo(this.camera.position)
+      let size = this.mode === 'walk' ? Math.min(0.09, dist * 0.03) : dist * 0.018
+      if (active) size *= 1.3
+      else if (faint) size *= 0.65
+      // the marker rests on top of its object at every zoom instead of floating a fixed distance above it
+      const scale = item.group.scale.y || 1
+      item.marker.scale.setScalar(size / scale)
+      item.marker.position.y = item.height + (size * 0.62) / scale
+    }
+    // story numbers keep a constant size on screen, like the markers
+    for (const o of this.story?.children ?? []) {
+      if (!(o as THREE.Sprite).isSprite) continue
+      const dist = o.getWorldPosition(world).distanceTo(this.camera.position)
+      o.scale.setScalar(this.mode === 'walk' ? Math.min(0.14, dist * 0.045) : dist * 0.03)
     }
   }
 

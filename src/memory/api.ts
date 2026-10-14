@@ -1,12 +1,13 @@
 import { YEARS, memorySpots } from '../config/scene'
 import { ERAS } from '../data/objects'
+import { track } from '../agents/activity'
 import type { MemoryAnalysis, UserMemory } from './types'
 
 const STORE_KEY = 'derive.memories.v1'
 const PASS_KEY = 'derive.key'
 
 // A deployment can be protected with an access key. Opening the site once with ?key=… remembers it.
-function passcode(): string | undefined {
+export function passcode(): string | undefined {
   try {
     const fromUrl = new URLSearchParams(location.search).get('key')
     if (fromUrl) localStorage.setItem(PASS_KEY, fromUrl)
@@ -16,26 +17,29 @@ function passcode(): string | undefined {
   }
 }
 
-export async function analyzeMemory(text: string, hasPhoto: boolean): Promise<MemoryAnalysis> {
-  let res: Response
-  try {
-    res = await fetch('/api/memory', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        text,
-        hasPhoto,
-        passcode: passcode(),
-        spots: memorySpots.map(({ id, label }) => ({ id, label })),
-        layers: YEARS.map((year) => ({ year, label: ERAS[year].label })),
-      }),
-    })
-  } catch {
-    throw new Error('Could not reach the server.')
-  }
-  const data = await res.json().catch(() => null)
-  if (!res.ok || !data?.analysis) throw new Error(data?.error ?? `Analysis failed (${res.status}).`)
-  return data.analysis
+export function analyzeMemory(text: string, hasPhoto: boolean): Promise<MemoryAnalysis> {
+  return track('capture', `“${text.length > 60 ? `${text.slice(0, 60)}…` : text}”`, async () => {
+    let res: Response
+    try {
+      res = await fetch('/api/memory', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text,
+          hasPhoto,
+          passcode: passcode(),
+          spots: memorySpots.map(({ id, label }) => ({ id, label })),
+          layers: YEARS.map((year) => ({ year, label: ERAS[year].label })),
+        }),
+      })
+    } catch {
+      throw new Error('Could not reach the server.')
+    }
+    const data = await res.json().catch(() => null)
+    if (!res.ok || !data?.analysis) throw new Error(data?.error ?? `Analysis failed (${res.status}).`)
+    const a: MemoryAnalysis = data.analysis
+    return { result: a, output: `${a.object.name} · ${a.time.year ?? 'year unknown'} · ${a.place.text || 'place unknown'}`, model: data.model }
+  })
 }
 
 export function loadMemories(): UserMemory[] {
