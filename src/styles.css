@@ -159,3 +159,10 @@ button { background: none; border: 0; padding: 0; cursor: pointer; text-align: l
 .endcard p { margin: 0; max-width: 720px; font-family: var(--display); font-size: 40px; font-weight: 400; line-height: 1.25; }
 .endcard h2 { margin: 0; font-size: 13px; font-weight: 600; letter-spacing: 0.3em; text-transform: uppercase; color: var(--accent); }
 @keyframes fade { from { opacity: 0; } }
+
+/* headset: only shown when the browser can start a WebXR session */
+.xr-enter {
+  position: fixed; left: 50%; bottom: 64px; transform: translateX(-50%); z-index: 5;
+  padding: 12px 22px; background: var(--accent); color: #fff; border-radius: 2px; text-align: center;
+  font-size: 12px; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase;
+}

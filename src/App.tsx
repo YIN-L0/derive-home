@@ -3,6 +3,7 @@ import { YEARS, memorySpots, personRoutes, viewpoints, type ObjectId, type Vec3,
 import { ERAS, OBJECTS, objectById, type Layer, type MemoryObject } from './data/objects'
 import { PEOPLE } from './data/people'
 import { DeriveScene, type ItemId } from './scene/DeriveScene'
+import type { XRMode } from './scene/XRTabletop'
 import { MemoryCard } from './memory/MemoryCard'
 import { MemoryDialog } from './memory/MemoryDialog'
 import { loadMemories, saveMemories } from './memory/api'
@@ -40,6 +41,8 @@ export default function App() {
   const [linking, setLinking] = useState<string | null>(null)
   const [story, setStory] = useState<Story | null>(loadStory)
   const [showStory, setShowStory] = useState(true)
+  const [xrMode, setXRMode] = useState<XRMode | null>(null) // what this device can enter, if anything
+  const [inXR, setInXR] = useState(false)
 
   useEffect(() => {
     const s = new DeriveScene(
@@ -51,10 +54,14 @@ export default function App() {
         onError: () => setStatus('error'),
         onDebugPoint: setDebugPoint,
         onModeChange: setMode,
+        onXRChange: setInXR,
+        onYearStep: (step) =>
+          setYear((y) => YEARS[Math.min(YEARS.length - 1, Math.max(0, YEARS.indexOf(y) + step))]),
       },
       START_YEAR,
     )
     scene.current = s
+    s.xrMode().then(setXRMode)
     return () => s.dispose()
   }, [])
 
@@ -70,6 +77,21 @@ export default function App() {
 
   useEffect(() => scene.current?.setYear(year), [year])
   useEffect(() => scene.current?.setSelected(selectedItem), [selectedItem])
+  // in the headset the story card floats above the object instead
+  useEffect(() => {
+    if (!inXR || !selectedItem) return scene.current?.setXRCard(null, null)
+    if (selectedMemory) {
+      const a = selectedMemory.analysis
+      scene.current?.setXRCard(selectedItem, { kicker: a.time.text || 'A memory', title: a.title, body: a.story })
+      return
+    }
+    const o = objectById(selectedItem as ObjectId)
+    scene.current?.setXRCard(selectedItem, {
+      kicker: `${year} · ${o.locationByYear[year]}`,
+      title: o.name,
+      body: o.storyByYear[year],
+    })
+  }, [inXR, selectedItem, selectedMemory, year])
   useEffect(() => {
     scene.current?.setMemories(
       memories.map((m) => ({
@@ -203,6 +225,12 @@ export default function App() {
         <h1>Dérive Home</h1>
         <p>Living Memory Graph</p>
       </header>
+
+      {xrMode && status === 'ready' && (
+        <button className="xr-enter" onClick={() => (inXR ? scene.current?.exitXR() : scene.current?.enterXR(xrMode))}>
+          {inXR ? 'Exit headset' : xrMode === 'immersive-ar' ? 'Enter MR · Dollhouse' : 'Enter VR · Dollhouse'}
+        </button>
+      )}
 
       <div className="side">
         <nav className="controls">

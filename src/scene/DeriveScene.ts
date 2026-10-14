@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js'
 import {
@@ -17,6 +18,7 @@ import {
   type Year,
 } from '../config/scene'
 import { createMemoryPrimitive, createPrimitive } from './primitives'
+import { XRTabletop, supportedXRMode, type XRCard, type XRMode } from './XRTabletop'
 
 // Built-in objects use their ObjectId; memories added by a visitor use a `mem-…` id.
 export type ItemId = ObjectId | `mem-${string}`
@@ -80,6 +82,11 @@ function numberSprite(n: number, color: string) {
   return sprite
 }
 
+// The assets are meshopt-compressed (npm run compress-assets) to stay light enough for a headset.
+function gltfLoader() {
+  return new GLTFLoader().setMeshoptDecoder(MeshoptDecoder)
+}
+
 function disposeGroup(g: THREE.Group) {
   g.traverse((o) => {
     const m = o as THREE.Mesh
@@ -110,6 +117,8 @@ export interface SceneCallbacks {
   onError: (message: string) => void
   onDebugPoint?: (p: Vec3) => void
   onModeChange?: (mode: 'orbit' | 'walk') => void
+  onXRChange?: (active: boolean) => void
+  onYearStep?: (step: 1 | -1) => void // thumbstick flick in the headset
 }
 
 function markerTexture(color: string, filled: boolean) {
@@ -135,6 +144,10 @@ function markerTexture(color: string, filled: boolean) {
 export class DeriveScene {
   private renderer: THREE.WebGLRenderer
   private scene = new THREE.Scene()
+  // everything that belongs to the home; identity on screen, a dollhouse in the headset
+  private world = new THREE.Group()
+  private xr: XRTabletop
+  private savedView: { pos: THREE.Vector3; quat: THREE.Quaternion; target: THREE.Vector3 } | null = null
   private camera: THREE.PerspectiveCamera
   private controls: OrbitControls
   private raycaster = new THREE.Raycaster()
@@ -160,7 +173,6 @@ export class DeriveScene {
   private sightFrom = new THREE.Vector3(NaN)
   private objectPath: THREE.Group | null = null
   private story: THREE.Group | null = null
-  private frame = 0
   private down = { x: 0, y: 0 }
   private debug: boolean
   private resizeObserver: ResizeObserver
@@ -173,7 +185,8 @@ export class DeriveScene {
     const params = new URLSearchParams(location.search)
     this.debug = params.has('debug')
 
-    this.renderer = new THREE.WebGLRenderer({ antialias: true })
+    // alpha so passthrough can show behind the dollhouse in mixed reality
+    this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
     this.renderer.setClearColor(0x050505)
     container.appendChild(this.renderer.domElement)
@@ -202,6 +215,26 @@ export class DeriveScene {
     const sun = new THREE.DirectionalLight(0xffffff, 1.6)
     sun.position.set(4, 10, 6)
     this.scene.add(sun)
+    this.scene.add(this.world)
+
+    this.xr = new XRTabletop(this.renderer, this.scene, this.world, {
+      pick: (ray) => this.pickRay(ray),
+      onSelect: (id) => this.cb.onSelect(id as ItemId | null),
+      onYearStep: (step) => this.cb.onYearStep?.(step),
+      onChange: (active) => {
+        if (active) {
+          this.savedView = { pos: this.camera.position.clone(), quat: this.camera.quaternion.clone(), target: this.controls.target.clone() }
+          this.flight = null
+        } else if (this.savedView) {
+          // the headset moved the camera; put the screen view back where it was
+          this.camera.position.copy(this.savedView.pos)
+          this.camera.quaternion.copy(this.savedView.quat)
+          this.controls.target.copy(this.savedView.target)
+          this.resize()
+        }
+        this.cb.onXRChange?.(active)
+      },
+    })
 
     if (params.has('grid')) this.addDebugGrid()
     if (this.debug) (window as unknown as { __derive: DeriveScene }).__derive = this
@@ -222,7 +255,8 @@ export class DeriveScene {
     this.resizeObserver = new ResizeObserver(() => this.resize())
     this.resizeObserver.observe(container)
     this.resize()
-    this.tick()
+    // setAnimationLoop rather than requestAnimationFrame: it keeps running inside a headset session
+    this.renderer.setAnimationLoop(this.tick)
   }
 
   // ---------- public API ----------
@@ -293,7 +327,7 @@ export class DeriveScene {
         group.add(ring)
         group.scale.setScalar(0.001)
       }
-      this.scene.add(group)
+      this.world.add(group)
       this.items.set(m.id, {
         id: m.id,
         group,
@@ -319,7 +353,7 @@ export class DeriveScene {
     const pts = personRoutes[year].points.map(([x, , z]) => new THREE.Vector3(x, FLOOR_Y + 0.05, z))
     if (pts.length < 2) return
     this.route = pathGroup(pts, ROUTE_COLOR, 0.022, true)
-    this.scene.add(this.route)
+    this.world.add(this.route)
   }
 
   // Line joining every place an object has been, oldest to newest.
@@ -350,7 +384,7 @@ export class DeriveScene {
       dot.position.copy(p)
       this.objectPath.add(dot)
     }
-    this.scene.add(this.objectPath)
+    this.world.add(this.objectPath)
   }
 
   // The LITERATURE layer: the scenes of an imported story, numbered in order where they are
@@ -385,7 +419,7 @@ export class DeriveScene {
       sprite.position.copy(p)
       g.add(sprite)
     })
-    this.scene.add(g)
+    this.world.add(g)
     this.story = g
   }
 
@@ -395,6 +429,27 @@ export class DeriveScene {
     const p = item.marker.getWorldPosition(new THREE.Vector3()).project(this.camera)
     const r = this.renderer.domElement.getBoundingClientRect()
     return { x: r.left + ((p.x + 1) / 2) * r.width, y: r.top + ((1 - p.y) / 2) * r.height }
+  }
+
+  // ---------- headset ----------
+
+  // 'immersive-ar' on Quest (passthrough), 'immersive-vr' on headsets without it, null on a plain screen.
+  xrMode() {
+    return supportedXRMode()
+  }
+
+  enterXR(mode: XRMode) {
+    return this.xr.enter(mode)
+  }
+
+  exitXR() {
+    this.xr.exit()
+  }
+
+  // The card floating above the selected object in the headset; the screen keeps its HTML card.
+  setXRCard(id: ItemId | null, card: XRCard | null) {
+    const item = id ? this.items.get(id) : undefined
+    this.xr.setCard(item?.marker ?? null, item ? card : null)
   }
 
   // From outside, move in close on one object, keeping the side the camera is already on.
@@ -407,7 +462,7 @@ export class DeriveScene {
   }
 
   focusPoint(target: THREE.Vector3, distance = 2.6) {
-    if (this.mode !== 'orbit') return
+    if (this.mode !== 'orbit' || this.xr.active) return
     // Start from the side the camera is on, then swing around until nothing in the scan
     // stands between the camera and the point.
     const base = this.camera.position.clone().sub(target)
@@ -460,13 +515,14 @@ export class DeriveScene {
     }
     g.traverse((o) => (o.renderOrder = 7))
     g.position.set(...position)
-    this.scene.add(g)
+    this.world.add(g)
     this.beacon = g
     this.focusPoint(g.position.clone(), 3)
   }
 
   // Fly the camera to a configured angle. Walk views put you inside at eye height.
   goToView(v: Viewpoint) {
+    if (this.xr.active) return // the headset decides where you look from
     const toPos = new THREE.Vector3(...v.position)
     const target = new THREE.Vector3(...v.target)
     this.controls.enabled = false
@@ -486,7 +542,8 @@ export class DeriveScene {
     window.removeEventListener('keydown', this.onKeyDown)
     window.removeEventListener('keyup', this.onKeyUp)
     window.removeEventListener('blur', this.onBlur)
-    cancelAnimationFrame(this.frame)
+    this.xr.exit()
+    this.renderer.setAnimationLoop(null)
     this.resizeObserver.disconnect()
     this.controls.dispose()
     this.renderer.dispose()
@@ -496,7 +553,7 @@ export class DeriveScene {
   // ---------- setup ----------
 
   private loadApartment() {
-    new GLTFLoader().load(
+    gltfLoader().load(
       apartmentTransform.url,
       (gltf) => {
         const root = gltf.scene
@@ -511,7 +568,7 @@ export class DeriveScene {
           const src = m.material as THREE.MeshStandardMaterial
           m.material = new THREE.MeshBasicMaterial({ map: src.map, color: src.map ? 0xffffff : 0xcccccc })
         })
-        this.scene.add(root)
+        this.world.add(root)
         this.apartment = root
         this.cb.onLoaded()
       },
@@ -538,7 +595,7 @@ export class DeriveScene {
       marker.userData.id = id
       group.add(marker)
 
-      this.scene.add(group)
+      this.world.add(group)
       this.items.set(id, {
         id,
         group,
@@ -557,7 +614,7 @@ export class DeriveScene {
     // reflections for the models' metal and glass; the scan itself is unlit
     const envMap = pmrem.fromScene(new RoomEnvironment(), 0.04).texture
     pmrem.dispose()
-    const loader = new GLTFLoader()
+    const loader = gltfLoader()
     for (const id of Object.keys(objectModels) as ObjectId[]) {
       const cfg = objectModels[id]!
       const item = this.items.get(id)
@@ -610,7 +667,7 @@ export class DeriveScene {
     grid.position.y = 1.5
     ;(grid.material as THREE.Material).depthTest = false
     grid.renderOrder = 20
-    this.scene.add(grid)
+    this.world.add(grid)
     for (let x = -8; x <= 8; x += 2) {
       for (let z = -8; z <= 8; z += 2) {
         const c = document.createElement('canvas')
@@ -629,7 +686,7 @@ export class DeriveScene {
         s.position.set(x, 1.5, z)
         s.scale.set(0.8, 0.3, 1)
         s.renderOrder = 21
-        this.scene.add(s)
+        this.world.add(s)
       }
     }
   }
@@ -737,12 +794,16 @@ export class DeriveScene {
 
   private pick(e: PointerEvent): ItemId | null {
     this.setRay(e)
+    return this.pickRay(this.raycaster)
+  }
+
+  private pickRay(ray: THREE.Raycaster): ItemId | null {
     const targets = [...this.items.values()].filter((i) => i.group.visible).map((i) => i.group)
-    const hit = this.raycaster.intersectObjects(targets, true)[0]
+    const hit = ray.intersectObjects(targets, true)[0]
     if (!hit) return null
     // objects hidden behind the scan (walls, furniture) can't be clicked through it
     if (this.mode === 'walk' && this.apartment) {
-      const wall = this.raycaster.intersectObject(this.apartment, true)[0]
+      const wall = ray.intersectObject(this.apartment, true)[0]
       if (wall && wall.distance < hit.distance - 0.1) return null
     }
     let o: THREE.Object3D | null = hit.object
@@ -794,6 +855,7 @@ export class DeriveScene {
   // ---------- loop ----------
 
   private resize() {
+    if (this.renderer.xr.isPresenting) return // the headset sets the size
     const w = this.container.clientWidth || 1
     const h = this.container.clientHeight || 1
     this.renderer.setSize(w, h)
@@ -806,13 +868,20 @@ export class DeriveScene {
   // (shrinking with distance) and hidden while the object is behind a wall or furniture.
   private updateMarkers() {
     const world = new THREE.Vector3()
+    // the eye in the home's own coordinates, so sizes still hold when the home is a scaled dollhouse
+    const eye = this.world.worldToLocal(this.camera.getWorldPosition(new THREE.Vector3()))
     // A ray through the whole scan is costly, so only one object is checked, every few frames,
     // taking them in turn: each marker catches up within a second or two of the camera moving.
     // Nothing is checked while the camera and the objects are still.
     const moving = [...this.items.values()].some((i) => i.t < 1)
-    if (moving || !this.sightFrom.equals(this.camera.position)) {
-      this.sightFrom.copy(this.camera.position)
+    if (moving || !this.sightFrom.equals(eye)) {
+      this.sightFrom.copy(eye)
       this.sightPending = this.items.size
+    }
+    // in the headset the dollhouse is seen from outside and the eye never rests, so skip the costly rays
+    if (this.xr.active) {
+      for (const item of this.items.values()) item.hidden = false
+      this.sightPending = 0
     }
     if (this.apartment && this.sightPending > 0 && this.frameCount++ % 4 === 0) {
       this.sightPending--
@@ -820,9 +889,9 @@ export class DeriveScene {
       const item = list[this.sightTurn++ % list.length]
       world.copy(item.group.position)
       world.y += item.height / 2
-      const dir = world.sub(this.camera.position)
+      const dir = world.sub(eye)
       const dist = dir.length()
-      this.sightRay.set(this.camera.position, dir.normalize())
+      this.sightRay.set(eye, dir.normalize())
       this.sightRay.far = dist
       const wall = this.sightRay.intersectObject(this.apartment, true)[0]
       item.hidden = !!wall && wall.distance < dist - 0.3
@@ -834,7 +903,7 @@ export class DeriveScene {
       item.marker.visible = this.mode !== 'walk' || !item.hidden || active
       const faint = item.hidden && !active
       item.marker.material.opacity = faint ? 0.3 : 1
-      const dist = world.copy(item.group.position).distanceTo(this.camera.position)
+      const dist = world.copy(item.group.position).distanceTo(eye)
       let size = this.mode === 'walk' ? Math.min(0.09, dist * 0.03) : dist * 0.018
       if (active) size *= 1.3
       else if (faint) size *= 0.65
@@ -846,7 +915,7 @@ export class DeriveScene {
     // story numbers keep a constant size on screen, like the markers
     for (const o of this.story?.children ?? []) {
       if (!(o as THREE.Sprite).isSprite) continue
-      const dist = o.getWorldPosition(world).distanceTo(this.camera.position)
+      const dist = o.position.distanceTo(eye)
       o.scale.setScalar(this.mode === 'walk' ? Math.min(0.14, dist * 0.045) : dist * 0.03)
     }
   }
@@ -878,7 +947,6 @@ export class DeriveScene {
   }
 
   private tick = () => {
-    this.frame = requestAnimationFrame(this.tick)
     const now = performance.now()
     const dt = Math.min((now - this.lastTime) / 1000, 0.1)
     this.lastTime = now
@@ -895,7 +963,9 @@ export class DeriveScene {
       // lift the object slightly mid-move so it travels over furniture instead of through it
       item.group.position.y += Math.sin(k * Math.PI) * 0.5
     }
-    if (this.flight) {
+    if (this.xr.active) {
+      this.xr.update(this.camera)
+    } else if (this.flight) {
       const f = this.flight
       f.t = Math.min(1, f.t + dt / f.seconds)
       const k = f.t * f.t * (3 - 2 * f.t)
