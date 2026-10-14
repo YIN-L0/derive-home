@@ -3,7 +3,8 @@ import { YEARS, memorySpots, personRoutes, viewpoints, type ObjectId, type Vec3,
 import { ERAS, OBJECTS, objectById, type Layer, type MemoryObject } from './data/objects'
 import { PEOPLE } from './data/people'
 import { DeriveScene, type ItemId } from './scene/DeriveScene'
-import type { XRMode } from './scene/XRTabletop'
+import type { XRMode } from './xr/XRHome'
+import { XRKeyboard } from './xr/XRKeyboard'
 import { MemoryCard } from './memory/MemoryCard'
 import { MemoryDialog } from './memory/MemoryDialog'
 import { loadMemories, saveMemories } from './memory/api'
@@ -55,8 +56,6 @@ export default function App() {
         onDebugPoint: setDebugPoint,
         onModeChange: setMode,
         onXRChange: setInXR,
-        onYearStep: (step) =>
-          setYear((y) => YEARS[Math.min(YEARS.length - 1, Math.max(0, YEARS.indexOf(y) + step))]),
       },
       START_YEAR,
     )
@@ -77,21 +76,10 @@ export default function App() {
 
   useEffect(() => scene.current?.setYear(year), [year])
   useEffect(() => scene.current?.setSelected(selectedItem), [selectedItem])
-  // in the headset the story card floats above the object instead
+  // in the headset the page itself is drawn onto a floating screen (xr/DomScreen)
   useEffect(() => {
-    if (!inXR || !selectedItem) return scene.current?.setXRCard(null, null)
-    if (selectedMemory) {
-      const a = selectedMemory.analysis
-      scene.current?.setXRCard(selectedItem, { kicker: a.time.text || 'A memory', title: a.title, body: a.story })
-      return
-    }
-    const o = objectById(selectedItem as ObjectId)
-    scene.current?.setXRCard(selectedItem, {
-      kicker: `${year} · ${o.locationByYear[year]}`,
-      title: o.name,
-      body: o.storyByYear[year],
-    })
-  }, [inXR, selectedItem, selectedMemory, year])
+    document.body.classList.toggle('xr', inXR)
+  }, [inXR])
   useEffect(() => {
     scene.current?.setMemories(
       memories.map((m) => ({
@@ -332,14 +320,28 @@ export default function App() {
             {v.label}
           </button>
         ))}
-        {mode === 'walk' && (
+        {inXR ? (
           <p className="walkhelp">
-            Inside the home
+            {mode === 'walk' ? 'Inside the home' : 'Dollhouse'}
             <br />
-            Drag to look · W A S D to walk
+            Trigger: choose · point at the floor to go there
             <br />
-            Click the floor to move there
+            Left stick: walk · Right stick: turn
+            <br />
+            B / Y: step in or out · A / X: this screen
+            <br />
+            Grip: move the dollhouse
           </p>
+        ) : (
+          mode === 'walk' && (
+            <p className="walkhelp">
+              Inside the home
+              <br />
+              Drag to look · W A S D to walk
+              <br />
+              Click the floor to move there
+            </p>
+          )
         )}
       </nav>
 
@@ -394,6 +396,8 @@ export default function App() {
             'Apartment model not found — put it at public/assets/apartment/scene.glb. Objects still work.'}
         </footer>
       )}
+
+      {inXR && <XRKeyboard />}
 
       {debugPoint && <div className="debug">[{debugPoint.join(', ')}] — copied</div>}
 

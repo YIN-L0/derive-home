@@ -18,7 +18,13 @@ import {
   type Year,
 } from '../config/scene'
 import { createMemoryPrimitive, createPrimitive } from './primitives'
-import { XRTabletop, supportedXRMode, type XRCard, type XRMode } from './XRTabletop'
+import { computeBoundsTree, acceleratedRaycast } from 'three-mesh-bvh'
+import { XRHome, supportedXRMode, type XRMode } from '../xr/XRHome'
+
+// Rays against the ~140k-triangle scan (walls hiding markers, teleporting in the headset) go
+// through a bounding volume tree instead of testing every triangle.
+THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree
+THREE.Mesh.prototype.raycast = acceleratedRaycast
 
 // Built-in objects use their ObjectId; memories added by a visitor use a `mem-…` id.
 export type ItemId = ObjectId | `mem-${string}`
@@ -118,7 +124,6 @@ export interface SceneCallbacks {
   onDebugPoint?: (p: Vec3) => void
   onModeChange?: (mode: 'orbit' | 'walk') => void
   onXRChange?: (active: boolean) => void
-  onYearStep?: (step: 1 | -1) => void // thumbstick flick in the headset
 }
 
 function markerTexture(color: string, filled: boolean) {
@@ -146,7 +151,7 @@ export class DeriveScene {
   private scene = new THREE.Scene()
   // everything that belongs to the home; identity on screen, a dollhouse in the headset
   private world = new THREE.Group()
-  private xr: XRTabletop
+  private xr: XRHome
   private savedView: { pos: THREE.Vector3; quat: THREE.Quaternion; target: THREE.Vector3 } | null = null
   private camera: THREE.PerspectiveCamera
   private controls: OrbitControls
@@ -217,15 +222,18 @@ export class DeriveScene {
     this.scene.add(sun)
     this.scene.add(this.world)
 
-    this.xr = new XRTabletop(this.renderer, this.scene, this.world, {
+    this.xr = new XRHome(this.renderer, this.scene, this.world, this.camera, document.getElementById('root')!, {
       pick: (ray) => this.pickRay(ray),
+      apartment: () => this.apartment,
       onSelect: (id) => this.cb.onSelect(id as ItemId | null),
-      onYearStep: (step) => this.cb.onYearStep?.(step),
+      // markers and picking behave as on screen: map pins in the dollhouse, room-sized inside
+      onScale: (scale) => this.setMode(scale === 'walk' ? 'walk' : 'orbit'),
       onChange: (active) => {
         if (active) {
           this.savedView = { pos: this.camera.position.clone(), quat: this.camera.quaternion.clone(), target: this.controls.target.clone() }
           this.flight = null
         } else if (this.savedView) {
+          this.setMode('orbit')
           // the headset moved the camera; put the screen view back where it was
           this.camera.position.copy(this.savedView.pos)
           this.camera.quaternion.copy(this.savedView.quat)
@@ -446,12 +454,6 @@ export class DeriveScene {
     this.xr.exit()
   }
 
-  // The card floating above the selected object in the headset; the screen keeps its HTML card.
-  setXRCard(id: ItemId | null, card: XRCard | null) {
-    const item = id ? this.items.get(id) : undefined
-    this.xr.setCard(item?.marker ?? null, item ? card : null)
-  }
-
   // From outside, move in close on one object, keeping the side the camera is already on.
   focusOn(id: ItemId, distance = 2.6) {
     const item = this.items.get(id)
@@ -522,7 +524,7 @@ export class DeriveScene {
 
   // Fly the camera to a configured angle. Walk views put you inside at eye height.
   goToView(v: Viewpoint) {
-    if (this.xr.active) return // the headset decides where you look from
+    if (this.xr.active) return this.xr.goToView(v) // the headset teleports instead of flying
     const toPos = new THREE.Vector3(...v.position)
     const target = new THREE.Vector3(...v.target)
     this.controls.enabled = false
@@ -542,7 +544,7 @@ export class DeriveScene {
     window.removeEventListener('keydown', this.onKeyDown)
     window.removeEventListener('keyup', this.onKeyUp)
     window.removeEventListener('blur', this.onBlur)
-    this.xr.exit()
+    this.xr.dispose()
     this.renderer.setAnimationLoop(null)
     this.resizeObserver.disconnect()
     this.controls.dispose()
@@ -567,6 +569,7 @@ export class DeriveScene {
           if (!m.isMesh) return
           const src = m.material as THREE.MeshStandardMaterial
           m.material = new THREE.MeshBasicMaterial({ map: src.map, color: src.map ? 0xffffff : 0xcccccc })
+          m.geometry.computeBoundsTree()
         })
         this.world.add(root)
         this.apartment = root
@@ -878,8 +881,8 @@ export class DeriveScene {
       this.sightFrom.copy(eye)
       this.sightPending = this.items.size
     }
-    // in the headset the dollhouse is seen from outside and the eye never rests, so skip the costly rays
-    if (this.xr.active) {
+    // the dollhouse is always seen from outside: nothing to hide
+    if (this.xr.active && this.xr.scale === 'dollhouse') {
       for (const item of this.items.values()) item.hidden = false
       this.sightPending = 0
     }
@@ -964,7 +967,7 @@ export class DeriveScene {
       item.group.position.y += Math.sin(k * Math.PI) * 0.5
     }
     if (this.xr.active) {
-      this.xr.update(this.camera)
+      this.xr.update(dt, now)
     } else if (this.flight) {
       const f = this.flight
       f.t = Math.min(1, f.t + dt / f.seconds)

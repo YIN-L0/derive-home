@@ -7,6 +7,8 @@ export default defineConfig(({ mode }) => {
   // OPENAI_API_KEY (and optionally OPENAI_MODEL) come from .env and stay server-side
   const env = loadEnv(mode, process.cwd(), '')
   return {
+    // three-mesh-bvh and the XR emulator must share the app's copy of three
+    resolve: { dedupe: ['three'] },
     plugins: [
       react(),
       // `npm run dev:quest`: WebXR only starts on https, so the headset needs it over Wi-Fi

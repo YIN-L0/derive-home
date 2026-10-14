@@ -13,9 +13,11 @@ async function emulateQuest() {
   ])
   const device = new XRDevice(metaQuest3)
   device.installRuntime({ forceInstall: true }) // desktop Chrome has its own navigator.xr
-  device.installDevUI(DevUI)
+  // ?emulate=bare leaves out the on-screen controls, which hold the controller poses (scripted checks)
+  if (new URLSearchParams(location.search).get('emulate') !== 'bare') device.installDevUI(DevUI)
   device.installSEM(SyntheticEnvironmentModule)
   device.sem?.loadDefaultEnvironment('living_room')
+  ;(window as unknown as { __xrDevice: typeof device }).__xrDevice = device // for scripted checks
 }
 
 const emulate = import.meta.env.DEV && new URLSearchParams(location.search).has('emulate')
